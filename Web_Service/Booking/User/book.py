@@ -45,7 +45,6 @@ class BookingHandler(tornado.web.RequestHandler, Database):
             mFriday = mVisitingHours.get('friday')
             mSaturday = mVisitingHours.get('saturday')
             mSunday = mVisitingHours.get('sunday')
-            mTotal = self.request.arguments.get('total')
 
             # Validation for spotId
             if not mSpot:
@@ -195,6 +194,13 @@ class BookingHandler(tornado.web.RequestHandler, Database):
                     code = 4053
                     raise Exception
 
+            # Calculate total cost
+            total = 0
+            if mQuantityAd is not None:
+                total += mQuantityAd * mEntryFeeAd
+            if mQuantityCh is not None:
+                total += mQuantityCh * mEntryFeeCh
+
             # Create the spot data dictionary
             data = {
                 'spotId': mSpot,
@@ -219,17 +225,18 @@ class BookingHandler(tornado.web.RequestHandler, Database):
                     'saturday': mSaturday,
                     'sunday': mSunday
                 },
-                'total': mTotal
+                'total': total
             }
 
-            # Insert the spot into the database
+            # Insert the booking into the database
             addBooking = await self.bookTable.insert_one(data)
             if addBooking.inserted_id:
                 code = 1004
                 status = True
                 message = 'Your booking is confirmed'
                 result.append({
-                    'bookId': str(addBooking.inserted_id)
+                    'bookId': str(addBooking.inserted_id),
+                    'total': total  # Add the total to the result
                 })
             else:
                 code = 1005
