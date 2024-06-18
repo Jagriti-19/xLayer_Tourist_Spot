@@ -1,13 +1,14 @@
 
-from Web_Service.Log_In.adminLogin import AdminLogInHandler
-from Web_Service.Log_In.userLogin import UserLogInHandler
-from Web_Service.Search_Spot_By_Name_Location.search import SearchHandlerByNameLocation
-from Web_Service.Search_Spot_By_Name_Location_District.search import SearchHandlerByNameLocationDistrict
-from Web_Service.Tourist_Spot.spot import SpotHandler
+from Web_Service.Athentication.Admin.admin import AdminHandler
+from Web_Service.Athentication.Admin.adminLogin import AdminLogInHandler
+from Web_Service.Athentication.User.user import UserHandler
+from Web_Service.Athentication.User.userLogin import UserLogInHandler
+from Web_Service.Booking.book import BookingHandler
+from Web_Service.Tourist.Admin.search import SearchHandlerByNameLocation
+from Web_Service.Tourist.Admin.spot import SpotHandler
+from Web_Service.Tourist.User.search import SearchHandlerByNameLocationDistrict
 import tornado.ioloop
 import tornado.web
-from Web_Service.Sign_Up.user import UserHandler
-from Web_Service.Sign_Up.admin import AdminHandler
 from con import Database
 
 class MainHandler(tornado.web.RequestHandler):
@@ -20,13 +21,14 @@ class MainHandler(tornado.web.RequestHandler):
 def make_app(db):
     return tornado.web.Application([
         (r"/", MainHandler),
-        (r"/users", UserHandler),
-        (r"/admins", AdminHandler),
-        (r"/loginU", UserLogInHandler),
-        (r"/loginA", AdminLogInHandler),
-        (r"/spots", SpotHandler),
-        (r"/search", SearchHandlerByNameLocation),
-        (r"/searching", SearchHandlerByNameLocationDistrict),
+        (r"/web/users", UserHandler),
+        (r"/web/admins", AdminHandler),
+        (r"/web/loginU", UserLogInHandler),
+        (r"/web/loginA", AdminLogInHandler),
+        (r"/web/spots", SpotHandler),
+        (r"/web/search", SearchHandlerByNameLocation),
+        (r"/web/searching", SearchHandlerByNameLocationDistrict),
+        (r"/web/booking", BookingHandler),
     ])
 
 if __name__ == "__main__":

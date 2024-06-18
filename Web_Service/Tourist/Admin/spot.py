@@ -62,6 +62,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 message = 'Name must only contain alphabetic characters and spaces'
                 code = 4036
                 raise Exception
+            
+            mName = mName.title()
 
             # Validation for description
             if not mDescription:
@@ -160,19 +162,28 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 }
             }
 
-            # Insert the spot into the database
-            addSpot = await self.spotTable.insert_one(data)
-            if addSpot.inserted_id:
-                code = 1004
-                status = True
-                message = 'Spot added successfully'
-                result.append({
-                    'spotId': str(addSpot.inserted_id)
-                })
-            else:
-                code = 1005
-                message = 'Failed to add spot'
-                raise Exception
+            try:
+                # Insert the spot into the database
+                addSpot = await self.spotTable.insert_one(data)
+                if addSpot.inserted_id:
+                    code = 1004
+                    status = True
+                    message = 'Spot added successfully'
+                    result.append({
+                        'spotId': str(addSpot.inserted_id)
+                    })
+                else:
+                    code = 1005
+                    message = 'Failed to add spot'
+                    raise Exception
+                
+            except Exception as e:
+                exe = str(e).split(':')
+                if 'name' in exe[2]:
+                    message = 'Spot name already exists.'
+                    code = 5477
+                    raise Exception
+            
 
         except Exception as e:
             if not message:
@@ -467,6 +478,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
 
 
 
+
+    #DELETE method for deleting spots by ID
     async def delete(self):
         code = 6014
         status = False
