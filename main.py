@@ -1,5 +1,5 @@
 
-from Web_Service.Athentication.Admin.admin import AdminHandler
+from Web_Service.Admin.admin import AdminHandler
 from Web_Service.Athentication.Admin.adminLogin import AdminLogInHandler
 from Web_Service.Athentication.User.user import UserHandler
 from Web_Service.Athentication.User.userLogin import UserLogInHandler
