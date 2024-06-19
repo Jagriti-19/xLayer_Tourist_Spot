@@ -1,15 +1,17 @@
+from datetime import datetime
 import json
 import re
 import tornado.web
 from bson.objectid import ObjectId
 from con import Database
-from datetime import datetime
+import time
 
-class BookingHandler(tornado.web.RequestHandler, Database):
+class BookingHandlerUser(tornado.web.RequestHandler, Database):
     bookTable = Database.db['bookings']
     spotTable = Database.db['spots']
+    userTable = Database.db['users']
 
-    # POST method for creating a new spot
+    # POST method for create booking
     async def post(self):
         code = 4014
         status = False
@@ -27,6 +29,7 @@ class BookingHandler(tornado.web.RequestHandler, Database):
 
             # Extract and validate fields from the request
             mSpot = self.request.arguments.get('spotId')
+            mUser = self.request.arguments.get('userId')
             mName = self.request.arguments.get('name')
             mMobile = self.request.arguments.get('mobile')
             mEmail = self.request.arguments.get('Email')
@@ -56,6 +59,19 @@ class BookingHandler(tornado.web.RequestHandler, Database):
             spot = await self.spotTable.find_one({'_id': ObjectId(mSpot)})
             if not spot:
                 message = 'Invalid spotId. Spot not found.'
+                code = 4034
+                raise Exception
+            
+             # Validation for userId
+            if not mUser:
+                message = 'UserId is required'
+                code = 4033
+                raise Exception
+
+            # Check if the spotId exists in the spotTable
+            user = await self.userTable.find_one({'_id': ObjectId(mUser)})
+            if not user:
+                message = 'Invalid userId. User not found.'
                 code = 4034
                 raise Exception
 
@@ -193,17 +209,22 @@ class BookingHandler(tornado.web.RequestHandler, Database):
                     message = f'{day.capitalize()} visiting hours must be in "HH AM/PM - HH AM/PM" format'
                     code = 4053
                     raise Exception
+                
+            
+            mBookingDateTime = int(time.time())
+            # formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(mBookingDateTime))
 
             # Calculate total cost
-            total = 0
+            mTotal = 0
             if mQuantityAd is not None:
-                total += mQuantityAd * mEntryFeeAd
+                mTotal += mQuantityAd * mEntryFeeAd
             if mQuantityCh is not None:
-                total += mQuantityCh * mEntryFeeCh
+                mTotal += mQuantityCh * mEntryFeeCh
 
             # Create the spot data dictionary
             data = {
                 'spotId': mSpot,
+                'userId': mUser,
                 'name': mName,
                 'email': mEmail,
                 'mobile': mMobile,
@@ -225,7 +246,8 @@ class BookingHandler(tornado.web.RequestHandler, Database):
                     'saturday': mSaturday,
                     'sunday': mSunday
                 },
-                'total': total
+                'total': mTotal,
+                'booking_date&time': mBookingDateTime
             }
 
             # Insert the booking into the database
@@ -236,7 +258,7 @@ class BookingHandler(tornado.web.RequestHandler, Database):
                 message = 'Your booking is confirmed'
                 result.append({
                     'bookId': str(addBooking.inserted_id),
-                    'total': total  # Add the total to the result
+                    'total': mTotal,
                 })
             else:
                 code = 1005
@@ -266,3 +288,100 @@ class BookingHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
+
+
+
+   # GET method to get booking details using userId or bookingId
+    async def get(self):
+        code = 4000
+        status = False
+        result = []
+        message = ''
+
+        try:
+            mUserId = self.get_argument('userId', None)
+            mBookingId = self.get_argument('bookingId', None)
+
+            if mUserId:
+                query = {'userId': mUserId}
+                cursor = self.bookTable.find(query)
+                async for booking in cursor:
+                    booking['_id'] = str(booking['_id'])
+                    booking['userId'] = str(booking['userId'])
+                    if 'booking_date&time' in booking:
+                        booking['booking_date&time'] = format_timestamp(int(booking['booking_date&time']))
+                    result.append(booking)
+
+                if result:
+                    message = 'Found'
+                    code = 2000
+                    status = True
+                else:
+                    message = 'No data found for the given userId'
+                    code = 4002
+
+            elif mBookingId:
+                try:
+                    mBookingId = ObjectId(mBookingId)
+                except Exception as e:
+                    message = 'Invalid bookingId format'
+                    code = 4023
+                    raise Exception
+
+                booking = await self.bookTable.find_one({'_id': mBookingId})
+                if booking:
+                    booking['_id'] = str(booking['_id'])
+                    booking['userId'] = str(booking['userId'])
+                    if 'booking_date&time' in booking:
+                        booking['booking_date&time'] = format_timestamp(int(booking['booking_date&time']))
+                    result.append(booking)
+                    message = 'Found'
+                    code = 2000
+                    status = True
+                else:
+                    message = 'No data found for the given bookingId'
+                    code = 4002
+            else:
+                message = 'Please enter userId or bookingId'
+                code = 4022
+
+        except Exception as e:
+            if not message:
+                message = 'Internal server error'
+                code = 5010
+            print(e)
+
+        response = {
+            'code': code,
+            'message': message,
+            'status': status,
+        }
+
+        try:
+            if result:
+                response['result'] = result
+
+            self.set_header('Content-Type', 'application/json')
+            self.write(response)
+            await self.finish()
+
+        except Exception as e:
+            message = 'There is some issue'
+            code = 5011
+            print(e)
+            raise Exception
+
+
+
+# formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(ts))
+
+
+def format_timestamp(timestamp):
+    try:
+        # Convert timestamp to datetime object
+        dt_object = datetime.fromtimestamp(timestamp)
+        # Format datetime object as required
+        return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")
+    except Exception as e:
+        print(f"Error formatting timestamp: {e}")
+        return "Invalid Date"
