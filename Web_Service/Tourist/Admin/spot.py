@@ -3,11 +3,12 @@ import re
 import tornado.web
 from bson.objectid import ObjectId
 from con import Database
+from mimetypes import MimeTypes
+from uuid import uuid4
 
 class SpotHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
 
-    # POST method for creating a new spot
     async def post(self):
         code = 4014
         status = False
@@ -15,35 +16,19 @@ class SpotHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
-            # Parse the request body as JSON
             try:
-                self.request.arguments = json.loads(self.request.body.decode())
+                files = {}
+                args = {}
+                b = self.request.headers.get('Content-Type')
+                tornado.httputil.parse_body_arguments(b, self.request.body, args, files)
+                data = json.loads(args['basic'][0])
             except Exception as e:
-                code = 4024
-                message = "Invalid JSON"
+                message = 'Expected type in Form-Data.'
+                code = 4036
                 raise Exception
 
             # Extract and validate fields from the request
-            mName = self.request.arguments.get('name')
-            mDescription = self.request.arguments.get('description')
-            mLocation = self.request.arguments.get('location')
-            mDistrict = self.request.arguments.get('district')
-            mCategory = self.request.arguments.get('category')
-            mEntryFee = self.request.arguments.get('entry_fee', {})
-            mEntryFeeAd = mEntryFee.get('adult')
-            mEntryFeeCh = mEntryFee.get('child')
-            mVisitingHours = self.request.arguments.get('visiting_hours', {})
-            mMonday = mVisitingHours.get('monday')
-            mTuesday = mVisitingHours.get('tuesday')
-            mWednesday = mVisitingHours.get('wednesday')
-            mThursday = mVisitingHours.get('thursday')
-            mFriday = mVisitingHours.get('friday')
-            mSaturday = mVisitingHours.get('saturday')
-            mSunday = mVisitingHours.get('sunday')
-            mPhotos = self.request.arguments.get('photos', {})
-            mPhoto1 = mPhotos.get('photo1')
-            mPhoto2 = mPhotos.get('photo2')
-            mPhoto3 = mPhotos.get('photo3')
+            mName = data.get('name')
 
             # Validation for name
             if not mName:
@@ -65,29 +50,41 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             
             mName = mName.title()
 
+            mDescription = data.get('description')
+
             # Validation for description
             if not mDescription:
                 message = 'Description is required'
                 code = 4033
                 raise Exception
 
+            mLocation = data.get('location')
+
             # Validation for location
             if not mLocation:
                 message = 'Location is required'
                 code = 4039
                 raise Exception
-            
+
+            mDistrict = data.get('district')
+
             # Validation for district
             if not mDistrict:
                 message = 'District is required'
                 code = 4040
                 raise Exception
+            
+            mCategory = data.get('category')
 
             # Validation for category
             if not mCategory:
                 message = 'Category is required'
                 code = 4045
                 raise Exception
+            
+            mEntryFee = data.get('entry_fee', {})
+            mEntryFeeAd = mEntryFee.get('adult')
+            mEntryFeeCh = mEntryFee.get('child')
 
             # Validation for entry fee
             if mEntryFeeAd is None:
@@ -116,27 +113,48 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 code = 4051
                 raise Exception
 
-            # Validation for visiting hours
-            visiting_hours_pattern = r'^\d{2} (AM|PM) - \d{2} (AM|PM)$'
+            mVisitingHours = data.get('visiting_hours', {})
             days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+            # Validation for visiting hours
             for day in days:
-                if not self.request.arguments['visiting_hours'].get(day):
+                if not mVisitingHours.get(day):
                     message = f'{day.capitalize()} visiting hours are required'
-                    code = 4052
-                    raise Exception
-                if not re.match(visiting_hours_pattern, self.request.arguments['visiting_hours'].get(day)):
-                    message = f'{day.capitalize()} visiting hours must be in "HH AM/PM - HH AM/PM" format'
-                    code = 4053
+                    code = 4045
                     raise Exception
 
+                visiting_hours_pattern = r'^\d{2}:\d{2} (AM|PM) - \d{2}:\d{2} (AM|PM)$'
+                
+                if not re.match(visiting_hours_pattern, mVisitingHours.get(day)):
+                    message = f'{day.capitalize()} visiting hours must be in "HH:MM AM/PM - HH:MM AM/PM" format'
+                    code = 4046
+                    raise Exception
+
+
+
+            files = self.request.files.get('photos', [])  # Assuming files are in a list under 'photos' key
+            images = []
+            for index, mPhoto in enumerate(files):
+                try:
+                    if not mPhoto:
+                        raise Exception(f'{index} photo is missing')
+                    mImage = self.save_photo(mPhoto, f'photo_{index}')
+                    images.append({'fileName': mImage})
+                except Exception as e:
+                    message = str(e)
+                    code = 4553
+                    raise Exception
+
+
+           
             # Validation for photos
-            if not mPhotos:
+            if not images:
                 message = 'Photos are required'
                 code = 4054
                 raise Exception
-
+            
             # Create the spot data dictionary
-            data = {
+            spot_data = {
                 'name': mName,
                 'description': mDescription,
                 'location': mLocation,
@@ -146,25 +164,13 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     'adult': mEntryFeeAd,
                     'child': mEntryFeeCh
                 },
-                'visiting_hours': {
-                    'monday': mMonday,
-                    'tuesday': mTuesday,
-                    'wednesday': mWednesday,
-                    'thursday': mThursday,
-                    'friday': mFriday,
-                    'saturday': mSaturday,
-                    'sunday': mSunday
-                },
-                'photos': {
-                    'photo1': mPhoto1,
-                    'photo2': mPhoto2,
-                    'photo3': mPhoto3
-                }
+                'visiting_hours': mVisitingHours,
+                'images': images
             }
 
             try:
                 # Insert the spot into the database
-                addSpot = await self.spotTable.insert_one(data)
+                addSpot = await self.spotTable.insert_one(spot_data)
                 if addSpot.inserted_id:
                     code = 1004
                     status = True
@@ -183,13 +189,11 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     message = 'Spot name already exists.'
                     code = 5477
                     raise Exception
-            
 
         except Exception as e:
             if not message:
                 message = 'Internal Server Error'
                 code = 1005
-            print(e)
 
         response = {
             'code': code,
@@ -208,7 +212,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
-        
+
+
 
 
     # GET method for retrieving spots by ID or all spots
@@ -228,9 +233,12 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 query = {}
 
             mSpot = self.spotTable.find(query)
-
-            for spot in await mSpot.to_list(length=None):
-                spot['_id'] = str(spot.get('_id'))  # Convert ObjectId to string   
+            async for spot in mSpot:
+                spot['_id'] = str(spot.get('_id'))  # Convert ObjectId to string
+                
+                for img in spot.get('images', []):
+                    img['link'] = 'http://10.10.10.114/uploads/{}'.format(img.get('fileName'))
+                
                 result.append(spot)
 
             if len(result):
@@ -274,99 +282,96 @@ class SpotHandler(tornado.web.RequestHandler, Database):
     async def put(self):
         code = 5014
         status = False
-        result = None
+        result = []
         message = ''
 
         try:
             # Parse the request body as JSON
             try:
-                self.request.arguments = json.loads(self.request.body.decode())
+                files = {}
+                args = {}
+                b = self.request.headers.get('Content-Type')
+                tornado.httputil.parse_body_arguments(b, self.request.body, args, files)
+                data = json.loads(args['basic'][0])
             except Exception as e:
-                code = 5024
-                message = "Invalid JSON"
-                raise Exception(message)
-
-            mSpotId = self.request.arguments.get('spotId')
+                message = 'Expected type in Form-Data.'
+                code = 4036
+                raise Exception
+            
+            mSpotId = data.get('spotId')
             if not mSpotId:
                 code = 5025
                 message = 'Spot ID is required'
-                raise Exception(message)
+                raise Exception
 
             try:
                 mSpotId = ObjectId(mSpotId)
             except Exception as e:
                 code = 5026
                 message = "Invalid spot ID format"
-                raise Exception(message)
+                raise Exception
 
-            mName = self.request.arguments.get('name')
-            mDescription = self.request.arguments.get('description')
-            mLocation = self.request.arguments.get('location')
-            mDistrict = self.request.arguments.get('district')
-            mCategory = self.request.arguments.get('category')
-            mEntryFee = self.request.arguments.get('entry_fee', {})
-            mEntryFeeAd = mEntryFee.get('adult')
-            mEntryFeeCh = mEntryFee.get('child')
-            mVisitingHours = self.request.arguments.get('visiting_hours', {})
-            mMonday = mVisitingHours.get('monday')
-            mTuesday = mVisitingHours.get('tuesday')
-            mWednesday = mVisitingHours.get('wednesday')
-            mThursday = mVisitingHours.get('thursday')
-            mFriday = mVisitingHours.get('friday')
-            mSaturday = mVisitingHours.get('saturday')
-            mSunday = mVisitingHours.get('sunday')
-            mPhotos = self.request.arguments.get('photos', {})
-            mPhoto1 = mPhotos.get('photo1')
-            mPhoto2 = mPhotos.get('photo2')
-            mPhoto3 = mPhotos.get('photo3')
+            mName = data.get('name')
 
             # Validation for name
             if not mName:
                 message = 'Name is required'
                 code = 5033
-                raise Exception(message)
+                raise Exception
             elif not isinstance(mName, str):
                 message = 'Invalid name'
                 code = 5034
-                raise Exception(message)
+                raise Exception
             elif len(mName) < 2:
                 message = 'Name should be at least 2 characters long'
                 code = 5035
-                raise Exception(message)
+                raise Exception
             elif not all(char.isalpha() or char.isspace() for char in mName):
                 message = 'Name must only contain alphabetic characters and spaces'
                 code = 5036
-                raise Exception(message)
+                raise Exception
+            
+
+            mDescription = data.get('description')
 
             # Validation for description
             if not mDescription:
                 message = 'Description is required'
                 code = 5037
-                raise Exception(message)
+                raise Exception
+            
+            mLocation = data.get('location')
 
-            # Validation for location
+             # Validation for location
             if not mLocation:
                 message = 'Location is required'
                 code = 5038
-                raise Exception(message)
+                raise Exception
             
+            mDistrict = data.get('district')
+
             # Validation for district
             if not mDistrict:
                 message = 'District is required'
                 code = 5039
-                raise Exception(message)
+                raise Exception
+            
+            mCategory = data.get('category')
 
             # Validation for category
             if not mCategory:
                 message = 'Category is required'
                 code = 5040
-                raise Exception(message)
+                raise Exception
+            
+            mEntryFee = data.get('entry_fee', {})
+            mEntryFeeAd = mEntryFee.get('adult')
 
-            # Validation for entry fee
+             # Validation for entry fee
             if mEntryFeeAd is None:
                 message = 'Entry fee for adult is required'
                 code = 5041
-                raise Exception(message)
+                raise Exception
             try:
                 mEntryFeeAd = float(mEntryFeeAd)
                 if mEntryFeeAd < 0:
@@ -374,12 +379,14 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             except Exception as e:
                 message = 'Entry fee for adult must be a positive number'
                 code = 5042
-                raise Exception(message)
+                raise Exception
+            
+            mEntryFeeCh = mEntryFee.get('child')
 
             if mEntryFeeCh is None:
                 message = 'Entry fee for child is required'
                 code = 5043
-                raise Exception(message)
+                raise Exception
             try:
                 mEntryFeeCh = float(mEntryFeeCh)
                 if mEntryFeeCh < 0:
@@ -387,28 +394,51 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             except Exception as e:
                 message = 'Entry fee for child must be a positive number'
                 code = 5044
-                raise Exception(message)
-
-            # Validation for visiting hours
-            visiting_hours_pattern = r'^\d{2} (AM|PM) - \d{2} (AM|PM)$'
+                raise Exception
+            
+            mVisitingHours = data.get('visiting_hours', {})
             days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+            # Validation for Visiting hours
             for day in days:
                 if not mVisitingHours.get(day):
                     message = f'{day.capitalize()} visiting hours are required'
-                    code = 5045
-                    raise Exception(message)
+                    code = 4045
+                    raise Exception
+
+                visiting_hours_pattern = r'^\d{2}:\d{2} (AM|PM) - \d{2}:\d{2} (AM|PM)$'
+                
                 if not re.match(visiting_hours_pattern, mVisitingHours.get(day)):
-                    message = f'{day.capitalize()} visiting hours must be in "HH AM/PM - HH AM/PM" format'
-                    code = 5046
-                    raise Exception(message)
+                    message = f'{day.capitalize()} visiting hours must be in "HH:MM AM/PM - HH:MM AM/PM" format'
+                    code = 4046
+                    raise Exception
+
+            files = self.request.files.get('photos', [])  # Assuming files are in a list under 'photos' key
+            images = []
+            for index, mPhoto in enumerate(files):
+                try:
+                    if not mPhoto:
+                        raise Exception(f'{index} photo is missing')
+                    mImage = self.save_photo(mPhoto, f'photo_{index}')
+                    images.append({'fileName': mImage})
+                except Exception as e:
+                    message = str(e)
+                    code = 4553
+                    raise Exception
+
+            if not images:
+                message = 'Photos are required'
+                code = 4048
+                raise Exception
 
             # Validation for photos
-            if not mPhotos:
+            if not images:
                 message = 'Photos are required'
                 code = 5047
-                raise Exception(message)
+                raise Exception
 
-            # Prepare updated data
+
+            # Updated data
             updated_data = {
                 'name': mName,
                 'description': mDescription,
@@ -419,20 +449,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     'adult': mEntryFeeAd,
                     'child': mEntryFeeCh
                 },
-                'visiting_hours': {
-                    'monday': mMonday,
-                    'tuesday': mTuesday,
-                    'wednesday': mWednesday,
-                    'thursday': mThursday,
-                    'friday': mFriday,
-                    'saturday': mSaturday,
-                    'sunday': mSunday
-                },
-                'photos': {
-                    'photo1': mPhoto1,
-                    'photo2': mPhoto2,
-                    'photo3': mPhoto3
-                }
+                'visiting_hours': mVisitingHours,
+                'images': images
             }
 
             # Update spot in the database
@@ -474,12 +492,11 @@ class SpotHandler(tornado.web.RequestHandler, Database):
         except Exception as e:
             message = 'There is some issue'
             code = 5022
-            raise Exception(message)
+            raise Exception
 
 
 
-
-    #DELETE method for deleting spots by ID
+    # DELETE method for deleting spots by ID
     async def delete(self):
         code = 6014
         status = False
@@ -531,3 +548,13 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             code = 6022
             raise Exception
 
+
+
+    def save_photo(self, photo, key):
+        unique_id = str(uuid4())
+        mime_type, _ = MimeTypes().guess_type(photo['filename'])
+        extension = MimeTypes().guess_extension(mime_type)
+        file_name = f"{unique_id}{extension}"
+        with open("uploads/" + file_name, 'wb') as output_file:
+            output_file.write(photo['body'])
+        return file_name

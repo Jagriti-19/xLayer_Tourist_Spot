@@ -2,7 +2,7 @@ import tornado.web
 from bson.objectid import ObjectId
 from con import Database
 
-class SearchHandlerByNameLocationDistrict(tornado.web.RequestHandler, Database):
+class SearchHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
 
     async def get(self):
@@ -13,7 +13,10 @@ class SearchHandlerByNameLocationDistrict(tornado.web.RequestHandler, Database):
 
         try:
             # Get query parameters  
-            mSearch = str(self.get_argument('search'))
+            try:
+                mSearch = str(self.get_argument('search'))
+            except:
+                mSearch = None
             if not mSearch:
                 message = 'Please provide any name, location, district, category'
                 code = 2000
@@ -56,6 +59,8 @@ class SearchHandlerByNameLocationDistrict(tornado.web.RequestHandler, Database):
             # Process the results
             async for spot in mSpots:
                 spot['_id'] = str(spot.get('_id'))
+                for index, img in enumerate(spot.get('images')):
+                    img['link'] = 'http://10.10.10.114/uploads/{}'.format(img.get('fileName'))
                 result.append(spot)
 
             # Check if any results were found

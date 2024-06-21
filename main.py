@@ -6,9 +6,9 @@ from Web_Service.Athentication.User.user import UserHandler
 from Web_Service.Athentication.User.userLogin import UserLogInHandler
 from Web_Service.Booking.Admin.booking import BookingHandlerAdmin
 from Web_Service.Booking.User.booking import BookingHandlerUser
-from Web_Service.Tourist.Admin.search import SearchHandlerByNameLocation
 from Web_Service.Tourist.Admin.spot import SpotHandler
-from Web_Service.Tourist.User.search import SearchHandlerByNameLocationDistrict
+from Web_Service.Tourist.User.allSpots import GetAllSpotsHandler
+from Web_Service.Tourist.User.search import SearchHandler
 import tornado.ioloop
 import tornado.web
 from con import Database
@@ -28,10 +28,11 @@ def make_app(db):
         (r"/web/loginU", UserLogInHandler),
         (r"/web/loginA", AdminLogInHandler),
         (r"/web/spots", SpotHandler),
-        (r"/web/search", SearchHandlerByNameLocation),
-        (r"/web/searching", SearchHandlerByNameLocationDistrict),
+        (r"/web/search", SearchHandler),
+        (r"/web/searching", GetAllSpotsHandler),
         (r"/web/booking", BookingHandlerUser),
         (r"/web/bookings", BookingHandlerAdmin),
+        
     ])
 
 if __name__ == "__main__":
