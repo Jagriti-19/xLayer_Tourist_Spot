@@ -29,51 +29,36 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
 
             # Extract and validate fields from the request
             mSpot = self.request.arguments.get('spotId')
-            mUser = self.request.arguments.get('userId')
-            mName = self.request.arguments.get('name')
-            mMobile = self.request.arguments.get('mobile')
-            mEmail = self.request.arguments.get('Email')
-            mAvailableDates = self.request.arguments.get('available dates')
-            mEntryFee = self.request.arguments.get('entry_fee', {})
-            mEntryFeeAd = mEntryFee.get('adult')
-            mEntryFeeCh = mEntryFee.get('child')
-            mQuantity = self.request.arguments.get('quantity', {})
-            mQuantityAd = mQuantity.get('adult')
-            mQuantityCh = mQuantity.get('child')
-            mVisitingHours = self.request.arguments.get('visiting_hours', {})
-            mMonday = mVisitingHours.get('monday')
-            mTuesday = mVisitingHours.get('tuesday')
-            mWednesday = mVisitingHours.get('wednesday')
-            mThursday = mVisitingHours.get('thursday')
-            mFriday = mVisitingHours.get('friday')
-            mSaturday = mVisitingHours.get('saturday')
-            mSunday = mVisitingHours.get('sunday')
 
-            # Validation for spotId
+             # Validation for spotId
             if not mSpot:
                 message = 'SpotId is required'
                 code = 4033
                 raise Exception
-
+            
             # Check if the spotId exists in the spotTable
             spot = await self.spotTable.find_one({'_id': ObjectId(mSpot)})
             if not spot:
                 message = 'Invalid spotId. Spot not found.'
                 code = 4034
                 raise Exception
-            
-             # Validation for userId
+
+            mUser = self.request.arguments.get('userId')
+
+            # Validation for userId
             if not mUser:
                 message = 'UserId is required'
                 code = 4033
                 raise Exception
-
-            # Check if the spotId exists in the spotTable
+            
+            # Check if the userId exists in the userTable
             user = await self.userTable.find_one({'_id': ObjectId(mUser)})
             if not user:
                 message = 'Invalid userId. User not found.'
                 code = 4034
                 raise Exception
+
+            mName = self.request.arguments.get('name')
 
             # Validation for name
             if not mName:
@@ -93,6 +78,26 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 code = 4036
                 raise Exception
 
+            mMobile = self.request.arguments.get('mobile')
+
+            # Validation 
+            if not mMobile:
+                code = 4039
+                message = 'Mobile number is required'
+                raise Exception
+
+
+            # Regular expression for validating mobile format (10 to 12 digits)
+            mobile_regex = r'^\d{10,12}$'
+            if not re.match(mobile_regex, mMobile):
+                code = 4040
+                message = 'Invalid mobile number format. Mobile number must be between 10 to 12 digits and contain only digits.'
+                raise Exception
+
+            
+            mEmail = self.request.arguments.get('Email')
+
+
             # Validation for Email
             if not mEmail:
                 code = 4037
@@ -106,73 +111,9 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 message = 'Invalid email format'
                 raise Exception
 
-            # Validation for Mobile
-            if not mMobile:
-                code = 4039
-                message = 'Mobile number is required'
-                raise Exception
-
-            # Regular expression for validating mobile format (10 to 12 digits)
-            mobile_regex = r'^\d{10,12}$'
-            if not re.match(mobile_regex, mMobile):
-                code = 4040
-                message = 'Invalid mobile number format. Mobile number must be between 10 to 12 digits and contain only digits.'
-                raise Exception
-
-            # Validation for entry fee
-            if mEntryFeeAd is None:
-                message = 'Entry fee for adult is required'
-                code = 4048
-                raise Exception
-            try:
-                mEntryFeeAd = float(mEntryFeeAd)
-                if mEntryFeeAd < 0:
-                    raise Exception
-            except Exception as e:
-                message = 'Entry fee for adult must be a positive number'
-                code = 4049
-                raise Exception
-
-            if mEntryFeeCh is None:
-                message = 'Entry fee for child is required'
-                code = 4050
-                raise Exception(message)
-            try:
-                mEntryFeeCh = float(mEntryFeeCh)
-                if mEntryFeeCh < 0:
-                    raise Exception
-            except Exception as e:
-                message = 'Entry fee for child must be a positive number'
-                code = 4051
-                raise Exception
+            mAvailableDates = self.request.arguments.get('available dates')
             
-            # Validation for quantity
-            if mQuantityAd is None and mQuantityCh is None:
-                message = 'At least one of adult or child quantity is required'
-                code = 4064
-                raise Exception
-
-            if mQuantityAd is not None:
-                try:
-                    mQuantityAd = int(mQuantityAd)
-                    if mQuantityAd < 0:
-                        raise Exception
-                except Exception as e:
-                    message = 'Quantity for adult must be a positive integer'
-                    code = 4065
-                    raise Exception
-
-            if mQuantityCh is not None:
-                try:
-                    mQuantityCh = int(mQuantityCh)
-                    if mQuantityCh < 0:
-                        raise Exception
-                except Exception as e:
-                    message = 'Quantity for child must be a positive integer'
-                    code = 4066
-                    raise Exception
-
-            # Validation for available booking date
+             # Validation for available booking date
             if not mAvailableDates:
                 message = 'Available booking date is required'
                 code = 4060
@@ -196,23 +137,95 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 message = 'Invalid date'
                 code = 4063
                 raise Exception
+            
+
+            mEntryFee = self.request.arguments.get('entry_fee', {})
+            mEntryFeeAd = mEntryFee.get('adult')
+
+            # Validation for entry fee
+            if mEntryFeeAd is None:
+                message = 'Entry fee for adult is required'
+                code = 4048
+                raise Exception
+            try:
+                mEntryFeeAd = float(mEntryFeeAd)
+                if mEntryFeeAd < 0:
+                    raise Exception
+            except Exception as e:
+                message = 'Entry fee for adult must be a positive number'
+                code = 4049
+                raise Exception
+            
+
+            mEntryFeeCh = mEntryFee.get('child')
+
+            # Validation for entry fee
+            if mEntryFeeCh is None:
+                message = 'Entry fee for child is required'
+                code = 4050
+                raise Exception(message)
+            try:
+                mEntryFeeCh = float(mEntryFeeCh)
+                if mEntryFeeCh < 0:
+                    raise Exception
+            except Exception as e:
+                message = 'Entry fee for child must be a positive number'
+                code = 4051
+                raise Exception
+            
+
+            mQuantity = self.request.arguments.get('quantity', {})
+            mQuantityAd = mQuantity.get('adult')
+
+            # Validation for quantity
+            if mQuantityAd is None and mQuantityCh is None:
+                message = 'At least one of adult or child quantity is required'
+                code = 4064
+                raise Exception
+
+            if mQuantityAd is not None:
+                try:
+                    mQuantityAd = int(mQuantityAd)
+                    if mQuantityAd < 0:
+                        raise Exception
+                except Exception as e:
+                    message = 'Quantity for adult must be a positive integer'
+                    code = 4065
+                    raise Exception
+
+            # Validation for quantity
+            mQuantityCh = mQuantity.get('child')
+
+            if mQuantityCh is not None:
+                try:
+                    mQuantityCh = int(mQuantityCh)
+                    if mQuantityCh < 0:
+                        raise Exception
+                except Exception as e:
+                    message = 'Quantity for child must be a positive integer'
+                    code = 4066
+                    raise Exception
+                
+
+            mVisitingHours = data.get('visiting_hours', {})
+            days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
             # Validation for visiting hours
-            visiting_hours_pattern = r'^\d{2} (AM|PM) - \d{2} (AM|PM)$'
-            days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
             for day in days:
-                if not self.request.arguments['visiting_hours'].get(day):
+                if not mVisitingHours.get(day):
                     message = f'{day.capitalize()} visiting hours are required'
-                    code = 4052
+                    code = 4045
                     raise Exception
-                if not re.match(visiting_hours_pattern, self.request.arguments['visiting_hours'].get(day)):
-                    message = f'{day.capitalize()} visiting hours must be in "HH AM/PM - HH AM/PM" format'
-                    code = 4053
+
+                visiting_hours_pattern = r'^\d{2}:\d{2} (AM|PM) - \d{2}:\d{2} (AM|PM)$'
+                
+                if not re.match(visiting_hours_pattern, mVisitingHours.get(day)):
+                    message = f'{day.capitalize()} visiting hours must be in "HH:MM AM/PM - HH:MM AM/PM" format'
+                    code = 4046
                     raise Exception
                 
             
             mBookingDateTime = int(time.time())
-            # formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(mBookingDateTime))
 
             # Calculate total cost
             mTotal = 0
@@ -237,15 +250,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     'adult': mQuantityAd,
                     'child': mQuantityCh
                 },
-                'visiting_hours': {
-                    'monday': mMonday,
-                    'tuesday': mTuesday,
-                    'wednesday': mWednesday,
-                    'thursday': mThursday,
-                    'friday': mFriday,
-                    'saturday': mSaturday,
-                    'sunday': mSunday
-                },
+                'visiting_hours': mVisitingHours,
                 'total': mTotal,
                 'booking_date&time': mBookingDateTime
             }
@@ -372,15 +377,12 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             raise Exception
 
 
-
-# formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(ts))
-
-
 def format_timestamp(timestamp):
     try:
         # Convert timestamp to datetime object
         dt_object = datetime.fromtimestamp(timestamp)
         # Format datetime object as required
+        # formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(ts))
         return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")
     except Exception as e:
         print(f"Error formatting timestamp: {e}")

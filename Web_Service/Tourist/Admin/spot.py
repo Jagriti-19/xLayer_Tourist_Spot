@@ -9,6 +9,8 @@ from uuid import uuid4
 class SpotHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
 
+
+    # POST method for creating spots
     async def post(self):
         code = 4014
         status = False
@@ -212,7 +214,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
-
 
 
 

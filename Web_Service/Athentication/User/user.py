@@ -68,7 +68,7 @@ class UserHandler(tornado.web.RequestHandler, Database):
             mMobile = self.request.arguments.get('mobile')
 
 
-             # Validation 
+            # Validation 
             if not mMobile:
                 code = 4039
                 message = 'Mobile number is required'
