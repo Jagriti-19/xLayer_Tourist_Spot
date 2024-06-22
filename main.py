@@ -8,6 +8,8 @@ from Web_Service.Booking.Admin.booking import BookingHandlerAdmin
 from Web_Service.Booking.User.booking import BookingHandlerUser
 from Web_Service.Review.Admin.reviews import ReviewsHandler
 from Web_Service.Review.User.review import ReviewHandler
+from Web_Service.Status.User.checkIn import CheckInHandler
+from Web_Service.Status.User.upcoming import UpcomingHandler
 from Web_Service.Tourist.Admin.spot import SpotHandler
 from Web_Service.Tourist.User.allSpots import GetAllSpotsHandler
 from Web_Service.Tourist.User.search import SearchHandler
@@ -24,18 +26,21 @@ class MainHandler(tornado.web.RequestHandler):
 
 def make_app(db):
     return tornado.web.Application([
-        (r"/web/", MainHandler),
-        (r"/web/users", UserHandler),
-        (r"/web/admins", AdminHandler),
-        (r"/web/loginU", UserLogInHandler),
-        (r"/web/loginA", AdminLogInHandler),
-        (r"/web/spots", SpotHandler),
-        (r"/web/search", SearchHandler),
-        (r"/web/searching", GetAllSpotsHandler),
-        (r"/web/booking", BookingHandlerUser),
-        (r"/web/bookings", BookingHandlerAdmin),
-        (r"/web/review", ReviewHandler),
-        (r"/web/reviews", ReviewsHandler),
+        (r'/web/', MainHandler),
+        (r'/web/users', UserHandler),
+        (r'/web/admins', AdminHandler),
+        (r'/web/loginU', UserLogInHandler),
+        (r'/web/loginA', AdminLogInHandler),
+        (r'/web/spots', SpotHandler),
+        (r'/web/search', SearchHandler),
+        (r'/web/searching', GetAllSpotsHandler),
+        (r'/web/booking', BookingHandlerUser),
+        (r'/web/bookings', BookingHandlerAdmin),
+        (r'/web/review', ReviewHandler),
+        (r'/web/reviews', ReviewsHandler),
+        (r'/web/upcoming', UpcomingHandler),
+        (r'/web/check-in', CheckInHandler),
+        
         
     ])
 

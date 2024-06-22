@@ -24,7 +24,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 self.request.arguments = json.loads(self.request.body.decode())
             except Exception as e:
                 code = 4024
-                message = "Invalid JSON"
+                message = 'Invalid JSON'
                 raise Exception
 
             # Extract and validate fields from the request
@@ -77,6 +77,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 message = 'Name must only contain alphabetic characters and spaces'
                 code = 4036
                 raise Exception
+            
 
             mMobile = self.request.arguments.get('mobile')
 
@@ -207,7 +208,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     raise Exception
                 
 
-            mVisitingHours = data.get('visiting_hours', {})
+            mVisitingHours = self.request.arguments.get('visiting_hours', {})
             days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
             # Validation for visiting hours
@@ -234,8 +235,20 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             if mQuantityCh is not None:
                 mTotal += mQuantityCh * mEntryFeeCh
 
+
+            self.request.arguments.get('status')
+
+
+            # Check if available capacity is sufficient for booking
+            total_guests = (mQuantityAd or 0) + (mQuantityCh or 0)
+            if int(spot['available_capacity']) < total_guests:
+                message = 'Insufficient available capacity for this booking'
+                code = 4067
+                raise Exception
+            
+
             # Create the spot data dictionary
-            data = {
+            booking_data = {
                 'spotId': mSpot,
                 'userId': mUser,
                 'name': mName,
@@ -252,11 +265,12 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 },
                 'visiting_hours': mVisitingHours,
                 'total': mTotal,
-                'booking_date&time': mBookingDateTime
-            }
+                'booking_date&time': mBookingDateTime,
+                'status': 'Pending'
+            } 
 
             # Insert the booking into the database
-            addBooking = await self.bookTable.insert_one(data)
+            addBooking = await self.bookTable.insert_one(booking_data)
             if addBooking.inserted_id:
                 code = 1004
                 status = True
@@ -265,6 +279,20 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     'bookId': str(addBooking.inserted_id),
                     'total': mTotal,
                 })
+
+
+                # Update available capacity for the spot
+                update_result = await self.spotTable.update_one(
+                    {'_id': spot['_id']},
+                    {'$inc': {'available_capacity': -total_guests}}
+                )
+
+                if update_result.modified_count != 1:
+                    # If the update didn't modify exactly one document, handle accordingly
+                    code = 1005
+                    message = 'Failed to update available capacity for the spot'
+                    raise Exception
+            
             else:
                 code = 1005
                 message = 'Failed to book'
@@ -293,97 +321,3 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
-
-
-
-   # GET method to get booking details using userId or bookingId
-    async def get(self):
-        code = 4000
-        status = False
-        result = []
-        message = ''
-
-        try:
-            mUserId = self.get_argument('userId', None)
-            mBookingId = self.get_argument('bookingId', None)
-
-            if mUserId:
-                query = {'userId': mUserId}
-                cursor = self.bookTable.find(query)
-                async for booking in cursor:
-                    booking['_id'] = str(booking['_id'])
-                    booking['userId'] = str(booking['userId'])
-                    if 'booking_date&time' in booking:
-                        booking['booking_date&time'] = format_timestamp(int(booking['booking_date&time']))
-                    result.append(booking)
-
-                if result:
-                    message = 'Found'
-                    code = 2000
-                    status = True
-                else:
-                    message = 'No data found for the given userId'
-                    code = 4002
-
-            elif mBookingId:
-                try:
-                    mBookingId = ObjectId(mBookingId)
-                except Exception as e:
-                    message = 'Invalid bookingId format'
-                    code = 4023
-                    raise Exception
-
-                booking = await self.bookTable.find_one({'_id': mBookingId})
-                if booking:
-                    booking['_id'] = str(booking['_id'])
-                    booking['userId'] = str(booking['userId'])
-                    if 'booking_date&time' in booking:
-                        booking['booking_date&time'] = format_timestamp(int(booking['booking_date&time']))
-                    result.append(booking)
-                    message = 'Found'
-                    code = 2000
-                    status = True
-                else:
-                    message = 'No data found for the given bookingId'
-                    code = 4002
-            else:
-                message = 'Please enter userId or bookingId'
-                code = 4022
-
-        except Exception as e:
-            if not message:
-                message = 'Internal server error'
-                code = 5010
-            print(e)
-
-        response = {
-            'code': code,
-            'message': message,
-            'status': status,
-        }
-
-        try:
-            if result:
-                response['result'] = result
-
-            self.set_header('Content-Type', 'application/json')
-            self.write(response)
-            await self.finish()
-
-        except Exception as e:
-            message = 'There is some issue'
-            code = 5011
-            print(e)
-            raise Exception
-
-
-def format_timestamp(timestamp):
-    try:
-        # Convert timestamp to datetime object
-        dt_object = datetime.fromtimestamp(timestamp)
-        # Format datetime object as required
-        # formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(ts))
-        return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")
-    except Exception as e:
-        print(f"Error formatting timestamp: {e}")
-        return "Invalid Date"

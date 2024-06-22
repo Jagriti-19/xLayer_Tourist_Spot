@@ -59,6 +59,7 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 message = 'Description is required'
                 code = 4033
                 raise Exception
+        
 
             mLocation = data.get('location')
 
@@ -133,7 +134,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     raise Exception
 
 
-
             files = self.request.files.get('photos', [])  # Assuming files are in a list under 'photos' key
             images = []
             for index, mPhoto in enumerate(files):
@@ -147,7 +147,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     code = 4553
                     raise Exception
 
-
            
             # Validation for photos
             if not images:
@@ -155,6 +154,22 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 code = 4054
                 raise Exception
             
+
+
+            mAvailableCapacity = data.get('available_capacity')
+
+            # Validation for capacity
+            if mAvailableCapacity is None:
+                message = 'Available Capacity is required'
+                code = 4033
+                raise Exception
+            
+            if mAvailableCapacity <= 0:
+                    message = 'Available Capacity must be an integer'
+                    code = 4034
+                    raise Exception
+
+
             # Create the spot data dictionary
             spot_data = {
                 'name': mName,
@@ -167,7 +182,9 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     'child': mEntryFeeCh
                 },
                 'visiting_hours': mVisitingHours,
+                'available_capacity': mAvailableCapacity,
                 'images': images
+                
             }
 
             try:
@@ -439,6 +456,20 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 raise Exception
 
 
+            mAvailableCapacity = data.get('available_capacity')
+
+            # Validation for capacity
+            if mAvailableCapacity is None:
+                message = 'Available Capacity is required'
+                code = 4033
+                raise Exception
+            
+            if mAvailableCapacity <= 0:
+                    message = 'Available Capacity must be an integer'
+                    code = 4034
+                    raise Exception
+            
+
             # Updated data
             updated_data = {
                 'name': mName,
@@ -451,7 +482,9 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     'child': mEntryFeeCh
                 },
                 'visiting_hours': mVisitingHours,
+                'available_capacity': mAvailableCapacity,
                 'images': images
+                
             }
 
             # Update spot in the database

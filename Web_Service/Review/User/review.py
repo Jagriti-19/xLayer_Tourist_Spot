@@ -248,7 +248,6 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
 
 
 
-
     # PUT method for updating reviews by reviewId
     async def put(self):
         code = 4014
@@ -343,7 +342,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             }
 
             # Update review in the database
-            update_result = await self.reviewTable.update_one(
+            updated_result = await self.reviewTable.update_one(
                 {'_id': ObjectId(mReviewId)},
                 {'$set': updated_data}
             )
