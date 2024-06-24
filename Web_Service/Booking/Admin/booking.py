@@ -9,7 +9,7 @@ class BookingHandlerAdmin(tornado.web.RequestHandler, Database):
     bookTable = Database.db['bookings']
 
 
-    # GET method for retrieving users by ID or all users
+    # GET method for retrieving booking details by BookingId or all bookings
     async def get(self):
         code = 4000
         status = False
@@ -29,8 +29,8 @@ class BookingHandlerAdmin(tornado.web.RequestHandler, Database):
 
             for booking in await mBooking.to_list(length=None):
                 booking['_id'] = str(booking.get('_id')) 
-                if 'booking_date&time' in booking:
-                    booking['booking_date&time'] = format_timestamp(int(booking['booking_date&time']))
+                if 'booking_date' in booking:
+                    booking['booking_date'] = format_timestamp(int(booking['booking_date']))
                 result.append(booking)
 
             if len(result):

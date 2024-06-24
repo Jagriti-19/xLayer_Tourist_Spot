@@ -5,11 +5,17 @@ import tornado.web
 from bson.objectid import ObjectId
 from con import Database
 import time
+import smtplib
+from email.mime.text import MIMEText
+from twilio.rest import Client
+import random
+
 
 class BookingHandlerUser(tornado.web.RequestHandler, Database):
     bookTable = Database.db['bookings']
     spotTable = Database.db['spots']
     userTable = Database.db['users']
+
 
     # POST method for create booking
     async def post(self):
@@ -36,6 +42,14 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 code = 4033
                 raise Exception
             
+            try:
+                mSpot = ObjectId(mSpot)
+            except Exception as e:
+                message = 'Invalid spotId format'
+                code = 4034
+                raise Exception
+            
+            
             # Check if the spotId exists in the spotTable
             spot = await self.spotTable.find_one({'_id': ObjectId(mSpot)})
             if not spot:
@@ -49,6 +63,13 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             if not mUser:
                 message = 'UserId is required'
                 code = 4033
+                raise Exception
+            
+            try:
+                mUser = ObjectId(mUser)
+            except Exception as e:
+                message = 'Invalid userId format'
+                code = 4034
                 raise Exception
             
             # Check if the userId exists in the userTable
@@ -79,20 +100,27 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 raise Exception
             
 
+            # Assuming you have mMobile as a string from the request arguments
             mMobile = self.request.arguments.get('mobile')
 
-            # Validation 
+            # Validation
             if not mMobile:
                 code = 4039
                 message = 'Mobile number is required'
                 raise Exception
 
-
-            # Regular expression for validating mobile format (10 to 12 digits)
-            mobile_regex = r'^\d{10,12}$'
-            if not re.match(mobile_regex, mMobile):
+            # Check if mMobile is a valid integer
+            try:
+                mobile_number = int(mMobile)
+            except ValueError:
                 code = 4040
-                message = 'Invalid mobile number format. Mobile number must be between 10 to 12 digits and contain only digits.'
+                message = 'Mobile number must be an integer'
+                raise Exception
+
+            # Check if the length of the mobile number is between 10 to 12 digits
+            if not (10 <= len(str(mMobile)) <= 12):
+                code = 4041
+                message = 'Mobile number should be between 10 to 12 digits'
                 raise Exception
 
             
@@ -238,6 +266,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
 
             self.request.arguments.get('status')
 
+            mTicket = generate_ticket_id()
 
             # Check if available capacity is sufficient for booking
             total_guests = (mQuantityAd or 0) + (mQuantityCh or 0)
@@ -265,7 +294,8 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 },
                 'visiting_hours': mVisitingHours,
                 'total': mTotal,
-                'booking_date&time': mBookingDateTime,
+                'booking_date': mBookingDateTime,
+                'ticketId': mTicket,
                 'status': 'Pending'
             } 
 
@@ -276,7 +306,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 status = True
                 message = 'Your booking is confirmed'
                 result.append({
-                    'bookId': str(addBooking.inserted_id),
+                    'bookingId': str(addBooking.inserted_id),
                     'total': mTotal,
                 })
 
@@ -293,6 +323,34 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     message = 'Failed to update available capacity for the spot'
                     raise Exception
             
+
+
+                # # Sms configuration
+                # try:
+                #     sms_message = f"Your booking is confirmed. Booking ID: {str(addBooking.inserted_id)}, Total: {mTotal}"
+                #     sms_response = client.messages.create(
+                #         body=sms_message,
+                #         from_=twilio_phone_number,
+                #         to=mMobile
+                #     )
+                # except Exception as e:
+                #     print(f"Failed to send SMS: {e}")
+                #     code = 1005
+                #     message = 'Booking confirmed but failed to send SMS notification'
+                #     raise Exception
+
+
+
+                # # Email configuration
+                # email_subject = "Booking Confirmation"
+                # email_message = f"Your booking is confirmed. Booking ID: {str(addBooking.inserted_id)}, Total: {mTotal}"
+
+                # # Send email
+                # email_sent = await send_email(mEmail, email_subject, email_message)
+                # if not email_sent:
+                #     print("Booking confirmed but failed to send email notification")
+
+               
             else:
                 code = 1005
                 message = 'Failed to book'
@@ -321,3 +379,38 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
+
+
+
+
+
+# async def send_email(to_email, subject, message):
+#     try:
+#         # Create the email message
+#         msg = MIMEText(message)
+#         msg["Subject"] = subject
+#         msg["From"] = smtp_user
+#         msg["To"] = to_email
+
+#         # Send the email
+#         server = smtplib.SMTP(smtp_server, smtp_port)
+#         server.starttls()
+#         server.login(smtp_user, smtp_password)
+#         server.sendmail(smtp_user, [to_email], msg.as_string())
+#         server.quit()
+
+#         return True
+#     except smtplib.SMTPException as e:
+#         print(f"Failed to send email: {str(e)}")
+#         return False
+#     except Exception as e:
+#         print(f"An unexpected error occurred: {str(e)}")
+#         return False
+
+
+
+
+def generate_ticket_id():
+    prefix = '#'  # Prefix for the ticket ID
+    ticket_number = random.randint(10000, 99999)  # Generate a random 5-digit number
+    return f"{prefix}{ticket_number}"

@@ -5,16 +5,17 @@ from con import Database
 import time
 
 
-class CheckInHandler(tornado.web.RequestHandler, Database):
+class CheckOutHandler(tornado.web.RequestHandler, Database):
     bookTable = Database.db['bookings']
     spotTable = Database.db['spots']
     userTable = Database.db['users']
     checkInTable = Database.db['check-ins']
+    checkOutTable = Database.db['check-outs']
 
 
     # Put method for update booking
     async def put(self):
-        code = 4014
+        code = 4034
         status = False
         result = []
         message = ''
@@ -31,42 +32,42 @@ class CheckInHandler(tornado.web.RequestHandler, Database):
                 raise Exception(message)
 
             # Fetch existing booking details
-            booking = await self.bookTable.find_one({'_id': mBookingId})
+            booking = await self.checkInTable.find_one({'_id': mBookingId})
             if not booking:
                 message = 'Booking not found'
                 code = 4021
                 raise Exception(message)
 
-            # Update status and check-in time
+            # Update status and check-out time
             updated_data = {
                 '$set': {
-                    'status': 'check-in',
-                    'check-in': int(time.time())
+                    'status': 'check-out',
+                    'check-out': int(time.time())
                 }
             }
 
-            # Update the booking status and check-in time
-            updated_result = await self.bookTable.update_one(
+            # Update the booking status and check-out time
+            updated_result = await self.checkInTable.update_one(
                 {'_id': mBookingId},
                 updated_data
             )
 
             if updated_result.modified_count > 0:
                 # Fetch updated booking after update operation
-                updated_booking = await self.bookTable.find_one({'_id': mBookingId})
+                updated_booking = await self.checkInTable.find_one({'_id': mBookingId})
 
-                # Add to check-in table with updated status and check-in time
-                addCheckIn = await self.checkInTable.insert_one(updated_booking)
-                if addCheckIn.inserted_id:
-                    # Remove from booking table after successfully adding to check-in table
-                    await self.bookTable.delete_one({'_id': mBookingId})
+                # Add to check-out table with updated status and check-out time
+                addCheckOut = await self.checkOutTable.insert_one(updated_booking)
+                if addCheckOut.inserted_id:
+                    # Remove from booking table after successfully adding to check-out table
+                    await self.checkInTable.delete_one({'_id': mBookingId})
 
-                    code = 4019
+                    code = 4039
                     status = True
-                    message = 'Checked in successfully'
+                    message = 'Checked out successfully'
                 else:
                     code = 4020
-                    message = 'Failed to move to check-in table'
+                    message = 'Failed to move to check-out table'
             else:
                 code = 4021
                 message = 'Booking not found or no changes made'
@@ -95,9 +96,8 @@ class CheckInHandler(tornado.web.RequestHandler, Database):
             code = 1006
             print(f"Error in response handling: {e}")
             raise Exception(message)
-        
 
-
+    
 
 
     # GET method to get check-in using userId or bookingId
@@ -113,14 +113,14 @@ class CheckInHandler(tornado.web.RequestHandler, Database):
 
             if mUserId:
                 query = {'userId': mUserId}
-                cursor = self.checkInTable.find(query)
+                cursor = self.checkOutTable.find(query)
                 async for booking in cursor:
                     booking['_id'] = str(booking['_id'])
                     booking['userId'] = str(booking['userId'])
                     if 'booking_date' in booking:
                         booking['booking_date'] = await format_timestamp(int(booking['booking_date']))
-                    if 'check-in' in booking:
-                        booking['check-in'] = await format_timestamp(int(booking['check-in']))
+                    if 'check-out' in booking:
+                        booking['check-out'] = await format_timestamp(int(booking['check-out']))
                     result.append(booking)
 
                 if result:
@@ -137,16 +137,16 @@ class CheckInHandler(tornado.web.RequestHandler, Database):
                 except Exception as e:
                     message = 'Invalid bookingId format'
                     code = 4023
-                    raise Exception(message)
+                    raise Exception
 
-                booking = await self.checkInTable.find_one({'_id': mBookingId})
+                booking = await self.checkOutTable.find_one({'_id': mBookingId})
                 if booking:
                     booking['_id'] = str(booking['_id'])
                     booking['userId'] = str(booking['userId'])
                     if 'booking_date' in booking:
                         booking['booking_date'] = await format_timestamp(int(booking['booking_date']))
-                    if 'check-in' in booking:
-                        booking['check-in'] = await format_timestamp(int(booking['check-in']))
+                    if 'check-out' in booking:
+                        booking['check-out'] = await format_timestamp(int(booking['check-out']))
                     result.append(booking)
                     message = 'Found'
                     code = 2000
@@ -182,7 +182,8 @@ class CheckInHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 5011
             print(e)
-            raise Exception(message)
+            raise Exception
+
 
 
 

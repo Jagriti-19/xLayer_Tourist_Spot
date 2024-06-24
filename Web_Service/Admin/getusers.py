@@ -8,8 +8,6 @@ class AdminHandler(tornado.web.RequestHandler, Database):
     userTable = Database.db['users']
 
 
-
-
     # GET method for retrieving users by ID or all users
     async def get(self):
         code = 4000

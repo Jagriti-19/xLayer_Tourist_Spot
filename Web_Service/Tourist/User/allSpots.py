@@ -7,8 +7,6 @@ import tornado.web
 class GetAllSpotsHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
 
-
-
     async def get(self):
         code = 4000
         status = False

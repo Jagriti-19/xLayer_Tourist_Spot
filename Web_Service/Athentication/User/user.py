@@ -57,7 +57,7 @@ class UserHandler(tornado.web.RequestHandler, Database):
                 raise Exception
             
 
-             # Regular expression for validating email format
+            # Regular expression for validating email format
             email_regex = r'^[\w\.-]+@[a-zA-Z\d\-]+(\.[a-zA-Z\d\-]+)*\.[a-zA-Z]+$'
             if not re.match(email_regex, mEmail):
                 code = 4038
@@ -65,23 +65,28 @@ class UserHandler(tornado.web.RequestHandler, Database):
                 raise Exception
 
 
+           # Assuming you have mMobile as a string from the request arguments
             mMobile = self.request.arguments.get('mobile')
 
-
-            # Validation 
+            # Validation
             if not mMobile:
                 code = 4039
                 message = 'Mobile number is required'
                 raise Exception
 
-
-            # Regular expression for validating mobile format (10 to 12 digits)
-            mobile_regex = r'^\d{10,12}$'
-            if not re.match(mobile_regex, mMobile):
+            # Check if mMobile is a valid integer
+            try:
+                mobile_number = int(mMobile)
+            except ValueError:
                 code = 4040
-                message = 'Invalid mobile number format. Mobile number must be between 10 to 12 digits and contain only digits.'
+                message = 'Mobile number must be an integer'
                 raise Exception
 
+            # Check if the length of the mobile number is between 10 to 12 digits
+            if not (10 <= len(str(mMobile)) <= 12):
+                code = 4041
+                message = 'Mobile number should be between 10 to 12 digits'
+                raise Exception
 
 
             mAddress = self.request.arguments.get('address')
@@ -92,7 +97,6 @@ class UserHandler(tornado.web.RequestHandler, Database):
                 code = 40455
                 message = 'Address is required'
                 raise Exception
-
 
    
             mPassword = self.request.arguments.get('password')
