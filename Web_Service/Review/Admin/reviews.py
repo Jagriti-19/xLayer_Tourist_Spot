@@ -1,4 +1,5 @@
 import json
+from JWTConfiguration.auth import xenProtocol
 from bson.objectid import ObjectId
 import tornado.web
 from con import Database 
@@ -9,7 +10,8 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
     userTable = Database.db['users']
 
 
-    # Get method for reviews By spotId
+    @xenProtocol
+    # Get method for reviews 
     async def get(self):
         code = 4000
         status = False
@@ -17,6 +19,18 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception
+            
             mReviewId = self.get_argument('reviewId', None)
             mUserId = self.get_argument('userId', None)
             mSpotId = self.get_argument('spotId', None)

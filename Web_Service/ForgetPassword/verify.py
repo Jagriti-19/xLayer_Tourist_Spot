@@ -1,12 +1,13 @@
 import json
-import bcrypt
-from bson.objectid import ObjectId
 import tornado.web
-from con import Database 
+import time
+from con import Database
+from bson.objectid import ObjectId
 
-class UserLogInHandler(tornado.web.RequestHandler, Database):
+SECRET_KEY = "Xlayer.in"
+
+class VerifyOTPHandler(tornado.web.RequestHandler, Database):
     userTable = Database.db['users']
-
 
     async def post(self):
         code = 4014
@@ -22,39 +23,43 @@ class UserLogInHandler(tornado.web.RequestHandler, Database):
                 message = "Invalid JSON"
                 raise Exception
 
+            otp = self.request.arguments.get('otp')
             mEmail = self.request.arguments.get('email')
-            mPassword = self.request.arguments.get('password')
 
             # Validation
-            if not (mEmail and mPassword):
+            if not otp:
                 code = 4037
-                message = 'Email and password are required'
+                message = 'OTP is required'
                 raise Exception
-            
 
-            # Find user by email
-            user = await self.userTable.find_one({'email': mEmail})
+            if not mEmail:
+                code = 4037
+                message = 'Email is required'
+                raise Exception
+
+            # Find user by OTP and email
+            user = await self.userTable.find_one({'otp': otp, 'email': mEmail})
             if not user:
                 code = 4049
-                message = 'User not found'
+                message = 'Invalid OTP or Email'
                 raise Exception
 
-            # Verify password
-            if not bcrypt.checkpw(mPassword.encode(), user['password']):
-                code = 4050
-                message = 'Invalid password'
+            # Verify OTP expiration time
+            otp_expiry = user.get('otp_expiry')
+
+            if not otp_expiry or time.time() > otp_expiry:
+                code = 4052
+                message = 'OTP has expired'
                 raise Exception
 
-            # Successful login
+            # OTP is valid
             code = 1000
             status = True
-            message = 'User Login successfully'
+            message = 'OTP is valid. Proceed with password reset.'
 
         except Exception as e:
-            if not len(message):
-                message = 'Internal Server Error'
-                code = 1005
-                print(e)
+            message = 'Internal Server Error'
+            code = 1005
 
         response = {
             'code': code,
@@ -63,13 +68,10 @@ class UserLogInHandler(tornado.web.RequestHandler, Database):
         }
 
         try:
+            self.set_header("Content-Type", "application/json")
             self.write(response)
             self.finish()
         except Exception as e:
             message = 'There is some issue'
             code = 1006
             raise Exception
-
-
-
-

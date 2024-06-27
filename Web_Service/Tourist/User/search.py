@@ -60,7 +60,7 @@ class SearchHandler(tornado.web.RequestHandler, Database):
             async for spot in mSpots:
                 spot['_id'] = str(spot.get('_id'))
                 for index, img in enumerate(spot.get('images')):
-                    img['link'] = 'http://10.10.10.114/uploads/{}'.format(img.get('fileName'))
+                    img['link'] = 'http://10.10.10.132/uploads/{}'.format(img.get('fileName'))
                 result.append(spot)
 
             # Check if any results were found

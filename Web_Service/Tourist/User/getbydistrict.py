@@ -29,7 +29,7 @@ class DistrictHandler(tornado.web.RequestHandler, Database):
                 spot['_id'] = str(spot.get('_id'))  # Convert ObjectId to string
                 
                 for img in spot.get('images', []):
-                    img['link'] = 'http://10.10.10.114/uploads/{}'.format(img.get('fileName'))
+                    img['link'] = 'http://10.10.10.132/uploads/{}'.format(img.get('fileName'))
                 
                 result.append(spot)
 

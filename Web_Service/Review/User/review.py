@@ -1,4 +1,5 @@
 import json
+from JWTConfiguration.auth import xenProtocol
 from bson.objectid import ObjectId
 import tornado.web
 from con import Database 
@@ -8,7 +9,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
     userTable = Database.db['users']
 
-
+    @xenProtocol
     # POST method for creating a reivew
     async def post(self):
         code = 4014
@@ -41,7 +42,8 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 code = 4034
                 raise Exception
 
-            mUser = self.request.arguments.get('userId')
+            mUser = self.user_id
+            print(mUser)
 
             # Validation for userId
             if not mUser:
@@ -59,7 +61,6 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             mRating = self.request.arguments.get('rating')
             
             # Validation for rating
-
             try:
                 mRating = float(mRating)
             except ValueError:
@@ -193,7 +194,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             raise Exception
 
 
-
+    @xenProtocol
     # Delete method for deleting reviews 
     async def delete(self):
         code = 6014
@@ -247,7 +248,8 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             raise Exception
 
 
-
+    
+    @xenProtocol
     # PUT method for updating reviews by reviewId
     async def put(self):
         code = 4014
@@ -347,7 +349,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 {'$set': updated_data}
             )
 
-            if update_result.modified_count > 0:
+            if updated_result.modified_count > 0:
                 code = 4019
                 status = True
                 message = 'Updated Successfully'

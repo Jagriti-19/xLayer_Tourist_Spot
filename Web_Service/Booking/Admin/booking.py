@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+from JWTConfiguration.auth import xenProtocol
 import tornado.web
 from bson.objectid import ObjectId
 from con import Database
@@ -7,8 +8,9 @@ from con import Database
 
 class BookingHandlerAdmin(tornado.web.RequestHandler, Database):
     bookTable = Database.db['bookings']
+    userTable = Database.db['users']
 
-
+    @xenProtocol
     # GET method for retrieving booking details by BookingId or all bookings
     async def get(self):
         code = 4000
@@ -17,6 +19,18 @@ class BookingHandlerAdmin(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception
+            
             mBookingId = self.get_argument('bookingId', default=None)
 
             if mBookingId:

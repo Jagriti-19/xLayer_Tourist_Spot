@@ -21,7 +21,7 @@ class GetAllSpotsHandler(tornado.web.RequestHandler, Database):
                 
                 # Iterate through each image in the 'images' array of the spot
                 for img in spot.get('images', []):
-                    img['link'] = 'http://10.10.10.114/uploads/{}'.format(img.get('fileName'))
+                    img['link'] = 'http://10.10.10.132/uploads/{}'.format(img.get('fileName'))
                 
                 result.append(spot)
 

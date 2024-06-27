@@ -374,71 +374,11 @@ class UserHandler(tornado.web.RequestHandler, Database):
                 raise Exception
 
 
-            mPassword = self.request.arguments.get('password')
-
-            # Validation
-            if not mPassword:
-                code = 4041
-                message = 'Password is required'
-                raise Exception
-
-            # Password complexity requirements
-            if len(mPassword) < 8:
-                code = 4042
-                message = 'Password should be at least 8 characters long'
-                raise Exception
-
-            if not any(char.isupper() for char in mPassword):
-                code = 4043
-                message = 'Password should contain at least one uppercase letter'
-                raise Exception
-
-            if not any(char.islower() for char in mPassword):
-                code = 4044
-                message = 'Password should contain at least one lowercase letter'
-                raise Exception
-
-            if not any(char.isdigit() for char in mPassword):
-                code = 4045
-                message = 'Password should contain at least one digit'
-                raise Exception
-
-            special_characters = '!@#$%^&*()_+-=[]{}|;:,.<>?'
-            if not any(char in special_characters for char in mPassword):
-                code = 4046
-                message = 'Password should contain at least one special character: !@#$%^&*()_+-=[]{}|;:,.<>?'
-                raise Exception
-
-            # No common passwords check (example list, adjust as needed)
-            common_passwords = ['password', 'password123', '123456', 'qwerty']
-            if mPassword.lower() in common_passwords:
-                code = 4047
-                message = 'Password must not be a commonly used password'
-                raise Exception
-
-            mConfirmPassword = self.request.arguments.get('confirm password')
-
-            # Validation
-            if not mConfirmPassword:
-                code = 4048
-                message = 'Confirm password is required'
-                raise Exception
-
-            # Validate password confirmation
-            if mPassword != mConfirmPassword:
-                code = 1003
-                message = 'Passwords do not match'
-                raise Exception
-
-            # Hash the password
-            hashed_password = bcrypt.hashpw(mPassword.encode(), bcrypt.gensalt())
-
             # Prepare updated data
             updated_data = {
                 'name': mName,
                 'email': mEmail,
                 'mobile': mMobile,
-                'password': hashed_password,
             }
 
             # Update user in the database

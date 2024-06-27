@@ -1,4 +1,5 @@
 from datetime import datetime
+from JWTConfiguration.auth import xenProtocol
 import tornado.web
 from bson.objectid import ObjectId
 from con import Database
@@ -6,7 +7,12 @@ import json
 
 class UpcomingHandler(tornado.web.RequestHandler, Database):
     bookTable = Database.db['bookings']
+    spotTable = Database.db['spots']
+    userTable = Database.db['users']
 
+
+    @xenProtocol
+    # Get method for upcoming
     async def get(self):
         code = 4000
         status = False
@@ -15,7 +21,7 @@ class UpcomingHandler(tornado.web.RequestHandler, Database):
 
         try:
             try:
-                mUserId = self.get_argument('userId')
+                mUserId = self.user_id
                 if not mUserId:
                     raise Exception
                 mUserId = ObjectId(mUserId)
@@ -30,21 +36,21 @@ class UpcomingHandler(tornado.web.RequestHandler, Database):
             except:
                 mBookingId = None
 
-            # Build the query
-            match_query = {}
             if mUserId:
-                match_query['userId'] = mUserId
-            elif mBookingId:
-                match_query['_id'] = mBookingId
-            
-            # Aggregation pipeline
-            pipeline = [
+                query = {'userId': mUserId}
+            else:
+                query = {'_id': mBookingId}
+ 
+            aggregation_pipeline = [
+                {
+                    '$match': query
+                },
                 {
                     '$lookup': {
                         'from': 'users',
                         'localField': 'userId',
                         'foreignField': '_id',
-                        'as': 'user_info'
+                        'as': 'user_details'
                     }
                 },
                 {
@@ -52,39 +58,36 @@ class UpcomingHandler(tornado.web.RequestHandler, Database):
                         'from': 'spots',
                         'localField': 'spotId',
                         'foreignField': '_id',
-                        'as': 'spot_info'
+                        'as': 'spot_details'
                     }
                 },
-                {'$unwind': '$user_info'},
-                {'$unwind': '$spot_info'},
+                {
+                    '$addFields': {
+                        'user_details': {
+                            '$first': '$user_details'
+                        },
+                        'spot_details': {
+                            '$first': '$spot_details'
+                        }
+                    }
+                },
                 {
                     '$project': {
-                        '_id': 1,
-                        'userId': 1,
-                        'spotId': 1,
-                        'name': '$user_info.name',
-                        'spot_name': '$spot_info.name',
+                        '_id': {'$toString': '$_id'},
+                        'userId': {'$toString': '$userId'},
                         'ticketId': 1,
-                        'available_dates': 1,
-                        'entry_fee': '$spot_info.entry_fee',
-                        'quantity': 1,
-                        'visiting_hours': '$spot_info.visiting_hours',
+                        'name': '$user_details.name',
+                        'spot_name': '$spot_details.name',
                         'total': 1,
-                        'booking_date': 1,
+                        'available dates': 1,
                         'status': 1,
-                        'check-in': 1,
-                        'check-out': 1,
                     }
                 }
             ]
 
-            cursor = self.bookTable.aggregate(pipeline)
+            cursor = self.bookTable.aggregate(aggregation_pipeline)
             async for booking in cursor:
-                booking['_id'] = str(booking['_id'])
-                booking['userId'] = str(booking['userId'])
-                booking['spotId'] = str(booking['spotId'])
-                if 'booking_date' in booking:
-                    booking['booking_date'] = await format_timestamp(int(booking['booking_date']))
+                booking['check-in'] = format_timestamp(int(booking['check-in']))
                 result.append(booking)
 
             if result:
@@ -94,6 +97,7 @@ class UpcomingHandler(tornado.web.RequestHandler, Database):
             else:
                 message = 'No data found for the given userId'
                 code = 4002
+
         except Exception as e:
             if not message:
                 message = 'Internal server error'
@@ -110,7 +114,7 @@ class UpcomingHandler(tornado.web.RequestHandler, Database):
                 response['result'] = result
 
             self.set_header('Content-Type', 'application/json')
-            self.write(json.dumps(response, default=str)) 
+            self.write(json.dumps(response, default=str))
             await self.finish()
 
         except Exception as e:
@@ -120,7 +124,9 @@ class UpcomingHandler(tornado.web.RequestHandler, Database):
             raise Exception
 
 
-async def format_timestamp(timestamp):
+
+
+def format_timestamp(timestamp):
     try:
         dt_object = datetime.fromtimestamp(timestamp)
         return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")

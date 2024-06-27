@@ -1,8 +1,10 @@
 from datetime import datetime
+from JWTConfiguration.auth import xenProtocol
 import tornado.web
 from bson.objectid import ObjectId
 from con import Database
 import time
+import json
 
 
 class CheckOutHandler(tornado.web.RequestHandler, Database):
@@ -13,6 +15,7 @@ class CheckOutHandler(tornado.web.RequestHandler, Database):
     checkOutTable = Database.db['check-outs']
 
 
+    @xenProtocol
     # Put method for update booking
     async def put(self):
         code = 4034
@@ -21,6 +24,18 @@ class CheckOutHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception
+            
             # Extract bookingId from URL params
             mBookingId = self.get_argument('bookingId')
 
@@ -97,10 +112,9 @@ class CheckOutHandler(tornado.web.RequestHandler, Database):
             print(f"Error in response handling: {e}")
             raise Exception(message)
 
-    
 
-
-    # GET method to get check-in using userId or bookingId
+    @xenProtocol
+    # Get method for check out
     async def get(self):
         code = 4000
         status = False
@@ -108,61 +122,89 @@ class CheckOutHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
-            mUserId = self.get_argument('userId', None)
-            mBookingId = self.get_argument('bookingId', None)
+            try:
+                mUserId = self.user_id
+                if not mUserId:
+                    raise Exception
+                mUserId = ObjectId(mUserId)
+            except:
+                mUserId = None
+            
+            try:
+                mBookingId = self.get_argument('bookingId')
+                if not mBookingId:
+                    raise Exception
+                mBookingId = ObjectId(mBookingId)
+            except:
+                mBookingId = None
 
             if mUserId:
                 query = {'userId': mUserId}
-                cursor = self.checkOutTable.find(query)
-                async for booking in cursor:
-                    booking['_id'] = str(booking['_id'])
-                    booking['userId'] = str(booking['userId'])
-                    if 'booking_date' in booking:
-                        booking['booking_date'] = await format_timestamp(int(booking['booking_date']))
-                    if 'check-out' in booking:
-                        booking['check-out'] = await format_timestamp(int(booking['check-out']))
-                    result.append(booking)
-
-                if result:
-                    message = 'Found'
-                    code = 2000
-                    status = True
-                else:
-                    message = 'No data found for the given userId'
-                    code = 4002
-
-            elif mBookingId:
-                try:
-                    mBookingId = ObjectId(mBookingId)
-                except Exception as e:
-                    message = 'Invalid bookingId format'
-                    code = 4023
-                    raise Exception
-
-                booking = await self.checkOutTable.find_one({'_id': mBookingId})
-                if booking:
-                    booking['_id'] = str(booking['_id'])
-                    booking['userId'] = str(booking['userId'])
-                    if 'booking_date' in booking:
-                        booking['booking_date'] = await format_timestamp(int(booking['booking_date']))
-                    if 'check-out' in booking:
-                        booking['check-out'] = await format_timestamp(int(booking['check-out']))
-                    result.append(booking)
-                    message = 'Found'
-                    code = 2000
-                    status = True
-                else:
-                    message = 'No data found for the given bookingId'
-                    code = 4002
             else:
-                message = 'Please enter userId or bookingId'
-                code = 4022
+                query = {'_id': mBookingId}
+ 
+            aggregation_pipeline = [
+                {
+                    '$match': query
+                },
+                {
+                    '$lookup': {
+                        'from': 'users',
+                        'localField': 'userId',
+                        'foreignField': '_id',
+                        'as': 'user_details'
+                    }
+                },
+                {
+                    '$lookup': {
+                        'from': 'spots',
+                        'localField': 'spotId',
+                        'foreignField': '_id',
+                        'as': 'spot_details'
+                    }
+                },
+                {
+                    '$addFields': {
+                        'user_details': {
+                            '$first': '$user_details'
+                        },
+                        'spot_details': {
+                            '$first': '$spot_details'
+                        }
+                    }
+                },
+                {
+                    '$project': {
+                        '_id': {'$toString': '$_id'},
+                        'userId': {'$toString': '$userId'},
+                        'ticketId': 1,
+                        'name': '$user_details.name',
+                        'spot_name': '$spot_details.name',
+                        'total': 1,
+                        'available dates': 1,
+                        'status': 1,
+                        'check-out': 1
+                    }
+                }
+            ]
+
+            cursor = self.checkOutTable.aggregate(aggregation_pipeline)
+            async for booking in cursor:
+                booking['check-out'] = format_timestamp(int(booking['check-out']))
+                result.append(booking)
+
+            if result:
+                message = 'Found'
+                code = 2000
+                status = True
+            else:
+                message = 'No data found for the given userId'
+                code = 4002
 
         except Exception as e:
             if not message:
                 message = 'Internal server error'
                 code = 5010
-            print(e)
 
         response = {
             'code': code,
@@ -175,26 +217,21 @@ class CheckOutHandler(tornado.web.RequestHandler, Database):
                 response['result'] = result
 
             self.set_header('Content-Type', 'application/json')
-            self.write(response)
+            self.write(json.dumps(response, default=str))
             await self.finish()
 
         except Exception as e:
             message = 'There is some issue'
             code = 5011
-            print(e)
+            print(f"Error in response serialization: {e}") 
             raise Exception
 
 
 
 
-
-
-async def format_timestamp(timestamp):
+def format_timestamp(timestamp):
     try:
-        # Convert timestamp to datetime object
         dt_object = datetime.fromtimestamp(timestamp)
-        # Format datetime object as required
-        # formatted_time = time.strftime("%d %B %Y %H:%M:%S", time.localtime(ts))
         return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")
     except Exception as e:
         print(f"Error formatting timestamp: {e}")

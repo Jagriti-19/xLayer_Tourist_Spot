@@ -1,18 +1,24 @@
-
 import json
+import bcrypt
 from bson.objectid import ObjectId
 import tornado.web
 from con import Database 
+import jwt
+import datetime
+import time
 
-class AdminLogInHandler(tornado.web.RequestHandler, Database):
-    adminTable = Database.db['admins']
+SECRET_KEY = "Xlayer.in"
 
-
+class UserLogInHandler(tornado.web.RequestHandler, Database):
+    userTable = Database.db['users']
+    sessionTable = Database.db['sessions']
 
     async def post(self):
         code = 4014
         status = False
         message = ''
+        result = []
+        jwt_token = None 
 
         try:
             # Parse the request body as JSON
@@ -31,18 +37,16 @@ class AdminLogInHandler(tornado.web.RequestHandler, Database):
                 code = 4037
                 message = 'Email and password are required'
                 raise Exception
-            
 
             # Find user by email
-            admin = await self.adminTable.find_one({'email': mEmail})
-            if not admin:
+            user = await self.userTable.find_one({'email': mEmail})
+            if not user:
                 code = 4049
-                message = 'Admin not found'
+                message = 'User not found'
                 raise Exception
 
             # Verify password
-            admin = await self.adminTable.find_one({'password': mPassword})
-            if not admin:
+            if not bcrypt.checkpw(mPassword.encode(), user['password']):
                 code = 4050
                 message = 'Invalid password'
                 raise Exception
@@ -50,21 +54,44 @@ class AdminLogInHandler(tornado.web.RequestHandler, Database):
             # Successful login
             code = 1000
             status = True
-            message = 'Admin Login successfully'
+            message = 'User Login successfully'
 
+            
+            # Create session entry
+            session_data = {
+                'user_id': str(user['_id']),
+                'login_time' : int(time.time()),
+                'logout_time' : None,
+                'duration' : None
+            }
+            result_in = await self.sessionTable.insert_one(session_data)
+            session_id = str(result_in.inserted_id)
+            
+            # Generate JWT token
+            payload = {
+                'user_id': str(user['_id']),
+                '_id': session_id,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+            }  
+            jwt_token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+            result.append({
+                'token' : jwt_token
+            })
         except Exception as e:
             if not len(message):
                 message = 'Internal Server Error'
                 code = 1005
-                print(e)
 
         response = {
             'code': code,
             'message': message,
-            'status': status,
+            'status': status
         }
 
         try:
+            if len(result):
+                response['result'] = result
+            self.set_header("Content-Type", "application/json")
             self.write(response)
             self.finish()
         except Exception as e:

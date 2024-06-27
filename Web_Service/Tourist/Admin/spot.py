@@ -1,15 +1,17 @@
 import json
 import re
+from JWTConfiguration.auth import xenProtocol
 import tornado.web
-from bson.objectid import ObjectId
 from con import Database
+from bson.objectid import ObjectId
 from mimetypes import MimeTypes
 from uuid import uuid4
 
 class SpotHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
+    userTable = Database.db['users']
 
-
+    @xenProtocol
     # POST method for creating spots
     async def post(self):
         code = 4014
@@ -18,6 +20,17 @@ class SpotHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception         
             try:
                 files = {}
                 args = {}
@@ -153,7 +166,7 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 message = 'Photos are required'
                 code = 4054
                 raise Exception
-            
+
 
 
             mAvailableCapacity = data.get('available_capacity')
@@ -233,7 +246,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             raise Exception
 
 
-
     # GET method for retrieving spots by ID or all spots
     async def get(self):
         code = 4000
@@ -252,10 +264,10 @@ class SpotHandler(tornado.web.RequestHandler, Database):
 
             mSpot = self.spotTable.find(query)
             async for spot in mSpot:
-                spot['_id'] = str(spot.get('_id'))  # Convert ObjectId to string
+                spot['_id'] = str(spot.get('_id'))
                 
                 for img in spot.get('images', []):
-                    img['link'] = 'http://10.10.10.114/uploads/{}'.format(img.get('fileName'))
+                    img['link'] = 'http://10.10.10.132/uploads/{}'.format(img.get('fileName'))
                 
                 result.append(spot)
 
@@ -294,8 +306,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             code = 5011
             raise Exception
         
-
-
+    
+    @xenProtocol
     # PUT method for Updating spots by ID
     async def put(self):
         code = 5014
@@ -304,7 +316,17 @@ class SpotHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
-            # Parse the request body as JSON
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception            
             try:
                 files = {}
                 args = {}
@@ -529,7 +551,7 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             raise Exception
 
 
-
+    @xenProtocol
     # DELETE method for deleting spots by ID
     async def delete(self):
         code = 6014
@@ -537,6 +559,18 @@ class SpotHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception
+            
             mSpotId = self.get_argument('spotId', None)
             if not mSpotId:
                 code = 6088

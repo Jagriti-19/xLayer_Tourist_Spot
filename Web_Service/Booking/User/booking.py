@@ -1,13 +1,12 @@
 from datetime import datetime
 import json
 import re
+from JWTConfiguration.auth import xenProtocol
 import tornado.web
 from bson.objectid import ObjectId
 from con import Database
 import time
-import smtplib
 from email.mime.text import MIMEText
-from twilio.rest import Client
 import random
 
 
@@ -16,7 +15,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
     userTable = Database.db['users']
 
-
+    @xenProtocol
     # POST method for create booking
     async def post(self):
         code = 4014
@@ -57,7 +56,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 code = 4034
                 raise Exception
 
-            mUser = self.request.arguments.get('userId')
+            mUser = self.user_id
 
             # Validation for userId
             if not mUser:
@@ -322,34 +321,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     code = 1005
                     message = 'Failed to update available capacity for the spot'
                     raise Exception
-            
-
-
-                # # Sms configuration
-                # try:
-                #     sms_message = f"Your booking is confirmed. Booking ID: {str(addBooking.inserted_id)}, Total: {mTotal}"
-                #     sms_response = client.messages.create(
-                #         body=sms_message,
-                #         from_=twilio_phone_number,
-                #         to=mMobile
-                #     )
-                # except Exception as e:
-                #     print(f"Failed to send SMS: {e}")
-                #     code = 1005
-                #     message = 'Booking confirmed but failed to send SMS notification'
-                #     raise Exception
-
-
-
-                # # Email configuration
-                # email_subject = "Booking Confirmation"
-                # email_message = f"Your booking is confirmed. Booking ID: {str(addBooking.inserted_id)}, Total: {mTotal}"
-
-                # # Send email
-                # email_sent = await send_email(mEmail, email_subject, email_message)
-                # if not email_sent:
-                #     print("Booking confirmed but failed to send email notification")
-
+               
                
             else:
                 code = 1005
@@ -379,33 +351,6 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
-
-
-
-
-
-# async def send_email(to_email, subject, message):
-#     try:
-#         # Create the email message
-#         msg = MIMEText(message)
-#         msg["Subject"] = subject
-#         msg["From"] = smtp_user
-#         msg["To"] = to_email
-
-#         # Send the email
-#         server = smtplib.SMTP(smtp_server, smtp_port)
-#         server.starttls()
-#         server.login(smtp_user, smtp_password)
-#         server.sendmail(smtp_user, [to_email], msg.as_string())
-#         server.quit()
-
-#         return True
-#     except smtplib.SMTPException as e:
-#         print(f"Failed to send email: {str(e)}")
-#         return False
-#     except Exception as e:
-#         print(f"An unexpected error occurred: {str(e)}")
-#         return False
 
 
 
