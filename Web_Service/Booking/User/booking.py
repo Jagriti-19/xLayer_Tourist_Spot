@@ -139,7 +139,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 message = 'Invalid email format'
                 raise Exception
 
-            mAvailableDates = self.request.arguments.get('available dates')
+            mAvailableDates = self.request.arguments.get('available_dates')
             
              # Validation for available booking date
             if not mAvailableDates:
@@ -282,7 +282,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 'name': mName,
                 'email': mEmail,
                 'mobile': mMobile,
-                'available dates': mAvailableDates,
+                'available_dates': mAvailableDates,
                 'entry_fee': {
                     'adult': mEntryFeeAd,
                     'child': mEntryFeeCh

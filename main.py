@@ -49,8 +49,6 @@ def make_app(db):
         (r'/web/booking', BookingHandlerUser),
         (r'/web/bookings', BookingHandlerAdmin),
         (r'/web/get-bookings', GetBookingsBySpotId),
-        (r'/web/review', ReviewHandler),
-        (r'/web/reviews', ReviewsHandler),
         (r'/web/upcoming', UpcomingHandler),
         (r'/web/check-in', CheckInHandler),
         (r'/web/check-out', CheckOutHandler),
@@ -58,7 +56,8 @@ def make_app(db):
         (r'/web/pdf', PDFHandler),
         (r'/web/district', DistrictHandler),
         (r'/web/session', SessionHandler),
-
+        (r'/web/review', ReviewHandler),
+        (r'/web/reviews', ReviewsHandler),
         
     ])
 

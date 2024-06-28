@@ -143,7 +143,7 @@ class UserHandler(tornado.web.RequestHandler, Database):
                 raise Exception
 
 
-            mConfirmPassword = self.request.arguments.get('confirm password')
+            mConfirmPassword = self.request.arguments.get('confirmPassword')
 
 
             # Validation

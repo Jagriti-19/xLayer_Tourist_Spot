@@ -181,7 +181,7 @@ class CheckOutHandler(tornado.web.RequestHandler, Database):
                         'name': '$user_details.name',
                         'spot_name': '$spot_details.name',
                         'total': 1,
-                        'available dates': 1,
+                        'available_dates': 1,
                         'status': 1,
                         'check-out': 1
                     }

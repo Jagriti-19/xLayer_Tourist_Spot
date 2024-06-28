@@ -1,17 +1,18 @@
-import json
-from JWTConfiguration.auth import xenProtocol
+import time
 from bson.objectid import ObjectId
 import tornado.web
+import json
 from con import Database 
+from datetime import datetime
 
 class ReviewsHandler(tornado.web.RequestHandler, Database):
-    reviewTable = Database.db['reviews']
+    reviewTable = Database.db['pending_reviews']
+    reviewsTable = Database.db['reviews']
     spotTable = Database.db['spots']
     userTable = Database.db['users']
 
 
-    @xenProtocol
-    # Get method for reviews 
+    # Get method for checking reviews
     async def get(self):
         code = 4000
         status = False
@@ -19,60 +20,88 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
-            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
-            if not user:
-                message = 'User not found'
-                code = 4002
-                raise Exception
-
-            mUserRole = user.get('role')
-            if mUserRole != 'admin':
-                message = 'Access forbidden: insufficient permissions'
-                code = 4030
-                raise Exception
+            try:
+                mUserId = self.get_argument('userId')
+                if not mUserId:
+                    raise Exception
+                mUserId = ObjectId(mUserId)
+            except:
+                mUserId = None
             
-            mReviewId = self.get_argument('reviewId', None)
-            mUserId = self.get_argument('userId', None)
-            mSpotId = self.get_argument('spotId', None)
+            try:
+                mReviewId = self.get_argument('reviewId')
+                if not mReviewId:
+                    raise Exception
+                mReviewId = ObjectId(mReviewId)
+            except:
+                mReviewId = None
 
-            query = {}
+            try:
+                mSpotId = self.get_argument('spotId')
+                if not mSpotId:
+                    raise Exception
+                mSpotId = ObjectId(mSpotId)
+            except:
+                mSpotId = None
 
             if mReviewId:
-                try:
-                    query['_id'] = ObjectId(mReviewId)
-                except Exception as e:
-                    message = 'Invalid review ID format'
-                    code = 4022
-                    raise Exception
-
+                query = {'_id': mReviewId}
             elif mUserId:
-                try:
-                    query['userId'] = ObjectId(mUserId)
-                    query = {'userId': str(mUserId)}
-                except Exception as e:
-                    message = 'Invalid user ID format'
-                    code = 4022
-                    raise Exception
-
+                query = {'userId': mUserId}
             elif mSpotId:
-                try:
-                    query['spotId'] = ObjectId(mSpotId)
-                    query = {'spotId': str(mSpotId)}
-                except Exception as e:
-                    message = 'Invalid spot ID format'
-                    code = 4022
-                    raise Exception
-
-            # If no specific ID is provided, retrieve all reviews
-            if not (mReviewId or mUserId or mSpotId):
+                query = {'spotId': mSpotId}
+            else:
                 query = {}
 
-            mReviews = self.reviewTable.find(query)
+            aggregation_pipeline = [
+                {
+                    '$match': query
+                },
+                {
+                    '$lookup': {
+                        'from': 'users',
+                        'localField': 'userId',
+                        'foreignField': '_id',
+                        'as': 'user_details'
+                    }
+                },
+                {
+                    '$lookup': {
+                        'from': 'spots',
+                        'localField': 'spotId',
+                        'foreignField': '_id',
+                        'as': 'spot_details'
+                    }
+                },
+                {
+                    '$addFields': {
+                        'user_details': {
+                            '$first': '$user_details'
+                        },
+                        'spot_details': {
+                            '$first': '$spot_details'
+                        }
+                    }
+                },
+                {
+                    '$project': {
+                        '_id': {'$toString': '$_id'},
+                        'userId': {'$toString': '$userId'},
+                        'user_name': '$user_details.name',
+                        'spotId': {'$toString': '$spotId'},
+                        'spot_name': '$spot_details.name',
+                        'feedback': 1,
+                        'rating': 1,
+                        'review_time': 1,
+                        'status': 1
+                        
+                    }
+                }
+            ]
 
-            async for review in mReviews:
-                review['_id'] = str(review.get('_id'))
-                review['userId'] = str(review.get('userId'))
-                review['spotId'] = str(review.get('spotId'))
+            cursor = self.reviewTable.aggregate(aggregation_pipeline)
+            async for review in cursor:
+                review['review_time'] = format_timestamp(int(review['review_time']))
                 result.append(review)
 
             if result:
@@ -87,6 +116,7 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
             if not message:
                 message = 'Internal server error'
                 code = 5010
+            print(f"Error: {e}")
 
         response = {
             'code': code,
@@ -99,12 +129,106 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
                 response['result'] = result
 
             self.set_header('Content-Type', 'application/json')
-            self.write(response)
+            self.write(json.dumps(response, default=str))
             await self.finish()
 
         except Exception as e:
             message = 'There is some issue'
             code = 5011
+            print(f"Error in response serialization: {e}") 
             raise Exception
 
 
+
+    # Put method for approving the reviews
+    async def put(self):
+        code = 4014
+        status = False
+        result = []
+        message = ''
+
+        try:
+            # Extract reviewId from URL params
+            mReviewId = self.get_argument('reviewId')
+
+            try:
+                mReviewId = ObjectId(mReviewId)
+            except Exception as e:
+                message = 'Invalid reviewId format'
+                code = 4031
+                raise Exception
+
+            # Fetch existing review details
+            review = await self.reviewTable.find_one({'_id': mReviewId})
+            if not review:
+                message = 'Review not found'
+                code = 4021
+                raise Exception
+
+            # Update status and approved time
+            updated_data = {
+                '$set': {
+                    'status': 'approved',
+                    'approved_time': int(time.time())
+                }
+            }
+
+            # Update the booking status and check-in time
+            updated_result = await self.reviewTable.update_one(
+                {'_id': mReviewId},
+                updated_data
+            )
+
+            if updated_result.modified_count > 0:
+
+                updated_review = await self.reviewTable.find_one({'_id': mReviewId})
+
+                addCheckIn = await self.reviewsTable.insert_one(updated_review)
+
+                if addCheckIn.inserted_id:
+
+                    await self.reviewTable.delete_one({'_id': mReviewId})
+
+                    code = 4019
+                    status = True
+                    message = 'Approved successfully'
+                else:
+                    code = 4020
+                    message = 'Failed to move to reviews table'
+            else:
+                code = 4021
+                message = 'Review not found or no changes made'
+
+        except Exception as e:
+            if not message:
+                message = 'Internal Server Error'
+                code = 1005
+
+        response = {
+            'code': code,
+            'message': message,
+            'status': status,
+        }
+
+        try:
+            if len(result):
+                response['result'] = result
+
+            self.write(response)
+            self.finish()
+
+        except Exception as e:
+            message = 'There is some issue'
+            code = 1006
+            raise Exception
+        
+
+
+
+def format_timestamp(timestamp):
+    try:
+        dt_object = datetime.fromtimestamp(timestamp)
+        return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")
+    except Exception as e:
+        print(f"Error formatting timestamp: {e}")
+        return "Invalid Date"

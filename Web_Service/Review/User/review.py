@@ -1,13 +1,16 @@
 import json
+import time
 from JWTConfiguration.auth import xenProtocol
 from bson.objectid import ObjectId
 import tornado.web
 from con import Database 
 
 class ReviewHandler(tornado.web.RequestHandler, Database):
-    reviewTable = Database.db['reviews']
+    reviewTable = Database.db['pending_reviews']
+    reviewsTable = Database.db['reviews']
     spotTable = Database.db['spots']
     userTable = Database.db['users']
+
 
     @xenProtocol
     # POST method for creating a reivew
@@ -36,14 +39,20 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 raise Exception
             
             # Check if the spotId exists in the spotTable
-            spot = await self.spotTable.find_one({'_id': ObjectId(mSpot)})
+            try:
+                mSpot = ObjectId(mSpot)
+            except Exception as e:
+                message = 'Invalid spotId format'
+                code = 4033
+                raise Exception
+
+            spot = await self.spotTable.find_one({'_id': mSpot})
             if not spot:
                 message = 'Invalid spotId. Spot not found.'
                 code = 4034
                 raise Exception
 
             mUser = self.user_id
-            print(mUser)
 
             # Validation for userId
             if not mUser:
@@ -52,7 +61,14 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 raise Exception
             
             # Check if the userId exists in the userTable
-            user = await self.userTable.find_one({'_id': ObjectId(mUser)})
+            try:
+                mUser = ObjectId(mUser)
+            except Exception as e:
+                message = 'Invalid userId format'
+                code = 4033
+                raise Exception
+
+            user = await self.userTable.find_one({'_id': mUser})
             if not user:
                 message = 'Invalid userId. User not found.'
                 code = 4034
@@ -81,20 +97,15 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 code = 4037
                 raise Exception
             
-            # Profanity filter example (simple)
-            profanity_list = ["badword1", "badword2"]
-            if any(bad_word in mFeedBack.lower() for bad_word in profanity_list):
-                message = 'Feedback contains inappropriate language'
-                code = 4038
-                raise Exception
-
-
             # Create the user data dictionary
             data = {
                 'spotId': mSpot,
                 'userId': mUser,
                 'rating': mRating,
-                'feedback': mFeedBack
+                'feedback': mFeedBack,
+                'review_time': int(time.time()),
+                'status': 'unapproved'
+
             }
 
             # Insert the user into the database
@@ -115,8 +126,6 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             if not len(message):
                 message = 'Internal Server Error'
                 code = 1005
-                raise Exception
-            
 
         response = {
             'code': code,
@@ -134,123 +143,11 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
         except Exception as e:
             message = 'There is some issue'
             code = 1006
-            raise Exception
  
    
 
-    # Get method for reviews By spotId
-    async def get(self):
-        code = 4000
-        status = False
-        result = []
-        message = ''
-
-        try:
-            mSpotId = self.get_argument('spotId')
-            if not mSpotId:
-                message = 'Please enter spotId'
-                code = 4022
-                raise Exception
-            mSpotId = ObjectId(mSpotId)
-
-            query = {'spotId': str(mSpotId)}
-            mReviews = self.reviewTable.find(query)
-
-            async for review in mReviews:
-                review['_id'] = str(review.get('_id'))
-                result.append(review)
-
-            if result:
-                message = 'Found'
-                code = 2000
-                status = True
-            else:
-                message = 'No data found'
-                code = 4002
-                raise Exception
-
-        except Exception as e:
-            if not message:
-                message = 'Internal server error'
-                code = 5010
-
-        response = {
-            'code': code,
-            'message': message,
-            'status': status,
-        }
-
-        try:
-            if result:
-                response['result'] = result
-
-            self.set_header('Content-Type', 'application/json')
-            self.write(response)
-            await self.finish()
-
-        except Exception as e:
-            message = 'There is some issue'
-            code = 5011
-            raise Exception
-
-
     @xenProtocol
-    # Delete method for deleting reviews 
-    async def delete(self):
-        code = 6014
-        status = False
-        message = ''
-
-        try:
-            mReviewId = self.get_argument('reviewId')
-            if not mReviewId:
-                code = 6088
-                message = 'Review ID is required'
-                raise Exception
-            try:
-                mReviewId = ObjectId(mReviewId)
-            except Exception:
-                code = 6035
-                message = 'Invalid review ID'
-                raise Exception
-
-            # Perform spot deletion
-            result = await self.reviewTable.delete_one({"_id": mReviewId})
-
-            if result.deleted_count:
-                code = 6019
-                status = True
-                message = 'Reviews deleted successfully'
-            else:
-                code = 6020
-                message = 'No reviews found for this review ID'
-
-        except Exception as e:
-            if not message:
-                message = 'Internal server error'
-                code = 6021
-                raise Exception
-            
-        response = {
-            'code': code,
-            'message': message,
-            'status': status,
-        }
-
-        try:
-            self.set_header('Content-Type', 'application/json')
-            self.write(json.dumps(response))
-            await self.finish()
-
-        except Exception as e:
-            message = 'There is some issue'
-            code = 6022
-            raise Exception
-
-
-    
-    @xenProtocol
-    # PUT method for updating reviews by reviewId
+    # PUT method for updating review by reviewId
     async def put(self):
         code = 4014
         status = False
@@ -377,3 +274,165 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
+
+
+
+
+    @xenProtocol
+    # Delete method for deleting review
+    async def delete(self):
+        code = 6014
+        status = False
+        message = ''
+
+        try:
+            mReviewId = self.get_argument('reviewId')
+            if not mReviewId:
+                code = 6088
+                message = 'Review ID is required'
+                raise Exception
+            try:
+                mReviewId = ObjectId(mReviewId)
+            except Exception:
+                code = 6035
+                message = 'Invalid review ID'
+                raise Exception
+
+            # Perform spot deletion
+            result = await self.reviewTable.delete_one({"_id": mReviewId})
+
+            if result.deleted_count:
+                code = 6019
+                status = True
+                message = 'Reviews deleted successfully'
+            else:
+                code = 6020
+                message = 'No reviews found for this review ID'
+
+        except Exception as e:
+            if not message:
+                message = 'Internal server error'
+                code = 6021
+                raise Exception
+            
+        response = {
+            'code': code,
+            'message': message,
+            'status': status,
+        }
+
+        try:
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps(response))
+            await self.finish()
+
+        except Exception as e:
+            message = 'There is some issue'
+            code = 6022
+            raise Exception
+
+
+
+
+    # Get reviews using Spot Id
+    async def get(self):
+        code = 4000
+        status = False
+        result = []
+        message = ''
+
+        try:
+            try:
+                mSpotId = self.get_argument('spotId')
+                if not mSpotId:
+                    raise Exception
+                mSpotId = ObjectId(mSpotId)
+            except:
+                mSpotId = None
+
+            if mSpotId:
+                query = {'spotId': mSpotId}
+            else:
+                query = {}
+
+            aggregation_pipeline = [
+                {
+                    '$match': query
+                },
+                {
+                    '$lookup': {
+                        'from': 'users',
+                        'localField': 'userId',
+                        'foreignField': '_id',
+                        'as': 'user_details'
+                    }
+                },
+                {
+                    '$addFields': {
+                        'user_details': {
+                            '$first': '$user_details'
+                        },
+                    }
+                },
+                {
+                    '$project': {
+                        '_id': 0,
+                        'user_name': '$user_details.name',
+                        'feedback': 1,
+                        'rating': 1,
+                    }
+                },
+                {
+                    '$group': {
+                        '_id': None,
+                        'average_rating': {'$avg': '$rating'},
+                        'reviews': {'$push': '$$ROOT'}
+                    }
+                },
+                {
+                    '$project': {
+                        '_id': 0,
+                        'average_rating': 1,
+                        'reviews': 1
+                    }
+                }
+            ]
+
+            cursor = self.reviewsTable.aggregate(aggregation_pipeline)
+            async for reviews in cursor:
+                result.append(reviews)
+
+
+            if result:
+                message = 'Found'
+                code = 2000
+                status = True
+            else:
+                message = 'No reviews found'
+                code = 4002
+
+        except Exception as e:
+            if not message:
+                message = 'Internal server error'
+                code = 5010
+
+        response = {
+            'code': code,
+            'message': message,
+            'status': status,
+        }
+
+        try:
+            if result:
+                response['result'] = result
+
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps(response, default=str))
+            await self.finish()
+
+        except Exception as e:
+            message = 'There is some issue'
+            code = 5011
+            raise Exception
+
+    
