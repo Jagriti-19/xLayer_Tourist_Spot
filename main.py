@@ -14,6 +14,7 @@ from Web_Service.Review.Admin.reviews import ReviewsHandler
 from Web_Service.Review.User.review import ReviewHandler
 from Web_Service.Service.pdf import PDFHandler
 from Web_Service.Session.get import SessionHandler
+from Web_Service.Status.User.cancel import CancelHandler
 from Web_Service.Status.User.checkIn import CheckInHandler
 from Web_Service.Status.User.checkOut import CheckOutHandler
 from Web_Service.Status.User.upcoming import UpcomingHandler
@@ -53,6 +54,7 @@ def make_app(db):
         (r'/web/upcoming', UpcomingHandler),
         (r'/web/check-in', CheckInHandler),
         (r'/web/check-out', CheckOutHandler),
+        (r'/web/cancels', CancelHandler),
         (r'/web/pdf', PDFHandler),
         (r'/web/district', DistrictHandler),
         (r'/web/session', SessionHandler),

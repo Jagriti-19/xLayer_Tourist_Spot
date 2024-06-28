@@ -11,9 +11,7 @@ class SessionHandler(tornado.web.RequestHandler, Database):
     userTable = Database.db['users']
     sessionTable = Database.db['sessions']
 
-
     @xenProtocol
-    # Get method for upcoming
     async def get(self):
         code = 4000
         status = False
@@ -22,17 +20,18 @@ class SessionHandler(tornado.web.RequestHandler, Database):
 
         try:
             try:
-                mUserId = self.get_argument('userId')
+                mUserId = self.get_argument('user_id')
                 if not mUserId:
+                    code = 4511
+                    message = "User ID is required"
                     raise Exception
-                mUserId = str(mUserId)
-            except:
-                mUserId = None
-            
+                mUserId = ObjectId(mUserId)
+                query = {'user_id': mUserId}
+            except Exception as e:
+                    code = 4511
+                    message = "Error processing user_id"
+                    raise Exception
 
-            if mUserId:
-                query = {'userId': mUserId}
- 
             aggregation_pipeline = [
                 {
                     '$match': query
@@ -40,12 +39,11 @@ class SessionHandler(tornado.web.RequestHandler, Database):
                 {
                     '$lookup': {
                         'from': 'users',
-                        'localField': 'userId',
+                        'localField': 'user_id',
                         'foreignField': '_id',
                         'as': 'user_details'
                     }
                 },
-
                 {
                     '$addFields': {
                         'user_details': {
@@ -56,7 +54,7 @@ class SessionHandler(tornado.web.RequestHandler, Database):
                 {
                     '$project': {
                         '_id': {'$toString': '$_id'},
-                        'userId': {'$toString': '$userId'},
+                        'userId': {'$toString': '$user_id'},
                         'name': '$user_details.name',
                         'login_time': 1,
                         'logout_time': 1,
@@ -67,9 +65,9 @@ class SessionHandler(tornado.web.RequestHandler, Database):
 
             cursor = self.sessionTable.aggregate(aggregation_pipeline)
             async for session in cursor:
-                session['login_time'] = format_timestamp(int(session['login_time']))
-                session['login_out'] = format_timestamp(int(session['login_out']))
-                session['duration'] = format_timestamp(int(session['duration']))
+                session['login_time'] = format_timestamp(session.get('login_time'))
+                session['logout_time'] = format_timestamp(session.get('logout_time'))
+                session['duration'] = format_duration(session.get('duration'))
                 result.append(session)
 
             if result:
@@ -77,7 +75,8 @@ class SessionHandler(tornado.web.RequestHandler, Database):
                 code = 2000
                 status = True
             else:
-                message = 'No data found for the given userId'
+                message = 'No data found for the given user_id'
+                status = False
                 code = 4002
 
         except Exception as e:
@@ -100,16 +99,16 @@ class SessionHandler(tornado.web.RequestHandler, Database):
             await self.finish()
 
         except Exception as e:
-            message = 'There is some issue'
+            message = 'Error in response serialization'
             code = 5011
-            print(f"Error in response serialization: {e}") 
             raise Exception
-
-
+        
 
 
 def format_timestamp(timestamp):
     try:
+        if timestamp is None:
+            return None
         dt_object = datetime.fromtimestamp(timestamp)
         return dt_object.strftime("%A, %d %B %Y, %H:%M:%S")
     except Exception as e:
@@ -117,4 +116,14 @@ def format_timestamp(timestamp):
         return "Invalid Date"
 
 
-
+def format_duration(duration):
+    try:
+        if duration is None:
+            return None
+        duration_seconds = int(duration)
+        hours, remainder = divmod(duration_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours}h {minutes}m {seconds}s"
+    except Exception as e:
+        print(f"Error formatting duration: {e}")
+        return "Invalid Duration"

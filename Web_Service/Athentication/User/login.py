@@ -59,7 +59,7 @@ class UserLogInHandler(tornado.web.RequestHandler, Database):
             
             # Create session entry
             session_data = {
-                'user_id': str(user['_id']),
+                'user_id': user['_id'],
                 'login_time' : int(time.time()),
                 'logout_time' : None,
                 'duration' : None
