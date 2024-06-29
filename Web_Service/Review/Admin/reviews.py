@@ -6,8 +6,7 @@ from con import Database
 from datetime import datetime
 
 class ReviewsHandler(tornado.web.RequestHandler, Database):
-    reviewTable = Database.db['pending_reviews']
-    reviewsTable = Database.db['reviews']
+    reviewTable = Database.db['reviews']
     spotTable = Database.db['spots']
     userTable = Database.db['users']
 
@@ -54,50 +53,71 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
                 query = {}
 
             aggregation_pipeline = [
-                {
-                    '$match': query
-                },
-                {
-                    '$lookup': {
-                        'from': 'users',
-                        'localField': 'userId',
-                        'foreignField': '_id',
-                        'as': 'user_details'
-                    }
-                },
-                {
-                    '$lookup': {
-                        'from': 'spots',
-                        'localField': 'spotId',
-                        'foreignField': '_id',
-                        'as': 'spot_details'
-                    }
-                },
-                {
-                    '$addFields': {
-                        'user_details': {
-                            '$first': '$user_details'
-                        },
-                        'spot_details': {
-                            '$first': '$spot_details'
+            {
+                '$match': query
+            },
+            {
+                '$lookup': {
+                    'from': 'users',
+                    'localField': 'userId',
+                    'foreignField': '_id',
+                    'as': 'user_details'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'spots',
+                    'localField': 'spotId',
+                    'foreignField': '_id',
+                    'as': 'spot_details'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'users',
+                    'localField': 'replies.userId',
+                    'foreignField': '_id',
+                    'as': 'reply_users'
+                }
+            },
+            {
+                '$addFields': {
+                    'user_details': {
+                        '$first': '$user_details'
+                    },
+                    'spot_details': {
+                        '$first': '$spot_details'
+                    },
+                    'replies': {
+                        '$map': {
+                            'input': '$replies',
+                            'as': 'reply',
+                            'in': {
+                                'user_name': {
+                                    '$arrayElemAt': ['$reply_users.name', {'$indexOfArray': ['$reply_users._id', '$$reply.userId']}]
+                                },
+                                'comment': '$$reply.comment'
+                            }
                         }
                     }
-                },
-                {
-                    '$project': {
-                        '_id': {'$toString': '$_id'},
-                        'userId': {'$toString': '$userId'},
-                        'user_name': '$user_details.name',
-                        'spotId': {'$toString': '$spotId'},
-                        'spot_name': '$spot_details.name',
-                        'feedback': 1,
-                        'rating': 1,
-                        'review_time': 1,
-                        'status': 1
-                        
-                    }
                 }
-            ]
+            },
+            {
+                '$project': {
+                    '_id': {'$toString': '$_id'},
+                    'userId': {'$toString': '$userId'},
+                    'user_name': '$user_details.name',
+                    'spotId': {'$toString': '$spotId'},
+                    'spot_name': '$spot_details.name',
+                    'feedback': 1,
+                    'rating': 1,
+                    'approved': 1,
+                    'review_time': 1,
+                    'replies': 1
+                }
+            }
+        ]
+
 
             cursor = self.reviewTable.aggregate(aggregation_pipeline)
             async for review in cursor:
@@ -156,48 +176,40 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
             except Exception as e:
                 message = 'Invalid reviewId format'
                 code = 4031
-                raise Exception
+                raise Exception(message) from e
 
             # Fetch existing review details
             review = await self.reviewTable.find_one({'_id': mReviewId})
             if not review:
                 message = 'Review not found'
                 code = 4021
-                raise Exception
+                raise Exception(message)
 
-            # Update status and approved time
+            # Update approved status and approved time
             updated_data = {
                 '$set': {
-                    'status': 'approved',
+                    'approved': True,
                     'approved_time': int(time.time())
                 }
             }
 
-            # Update the booking status and check-in time
+            # Update the review approved status
             updated_result = await self.reviewTable.update_one(
                 {'_id': mReviewId},
                 updated_data
             )
 
             if updated_result.modified_count > 0:
-
-                updated_review = await self.reviewTable.find_one({'_id': mReviewId})
-
-                addCheckIn = await self.reviewsTable.insert_one(updated_review)
-
-                if addCheckIn.inserted_id:
-
-                    await self.reviewTable.delete_one({'_id': mReviewId})
-
-                    code = 4019
-                    status = True
-                    message = 'Approved successfully'
-                else:
-                    code = 4020
-                    message = 'Failed to move to reviews table'
+                code = 1004
+                status = True
+                message = 'Review approved successfully'
+                result.append({
+                    'reviewId': str(mReviewId)
+                })
             else:
                 code = 4021
                 message = 'Review not found or no changes made'
+                raise Exception
 
         except Exception as e:
             if not message:
@@ -211,7 +223,7 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
         }
 
         try:
-            if len(result):
+            if result:
                 response['result'] = result
 
             self.write(response)
@@ -220,7 +232,13 @@ class ReviewsHandler(tornado.web.RequestHandler, Database):
         except Exception as e:
             message = 'There is some issue'
             code = 1006
-            raise Exception
+            response = {
+                'code': code,
+                'message': message,
+                'status': False,
+            }
+            self.write(response)
+            self.finish()
         
 
 

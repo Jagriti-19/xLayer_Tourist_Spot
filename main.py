@@ -1,7 +1,7 @@
 
 
 from Web_Service.Admin.getusers import AdminHandler
-from Web_Service.Athentication.User.user import UserHandler
+from Web_Service.Athentication.User.signup import UserHandler
 from Web_Service.Athentication.User.login import UserLogInHandler
 from Web_Service.Athentication.logout import LogoutHandler
 from Web_Service.Booking.Admin.booking import BookingHandlerAdmin
@@ -11,6 +11,7 @@ from Web_Service.ForgetPassword.otp import OTPHandler
 from Web_Service.ForgetPassword.reset import ResetPasswordHandler
 from Web_Service.ForgetPassword.verify import VerifyOTPHandler
 from Web_Service.Review.Admin.reviews import ReviewsHandler
+from Web_Service.Review.User.reply import ReplyHandler
 from Web_Service.Review.User.review import ReviewHandler
 from Web_Service.Service.pdf import PDFHandler
 from Web_Service.Session.get import SessionHandler
@@ -39,7 +40,7 @@ def make_app(db):
         (r'/web/users', UserHandler),
         (r'/web/admins', AdminHandler),
         (r'/web/spots', SpotHandler),
-        (r'/web/loginU', UserLogInHandler),
+        (r'/web/login', UserLogInHandler),
         (r'/web/log-out', LogoutHandler),
         (r'/web/otp-send', OTPHandler),
         (r'/web/verify', VerifyOTPHandler),
@@ -58,6 +59,7 @@ def make_app(db):
         (r'/web/session', SessionHandler),
         (r'/web/review', ReviewHandler),
         (r'/web/reviews', ReviewsHandler),
+        (r'/web/reply', ReplyHandler),
         
     ])
 

@@ -6,8 +6,7 @@ import tornado.web
 from con import Database 
 
 class ReviewHandler(tornado.web.RequestHandler, Database):
-    reviewTable = Database.db['pending_reviews']
-    reviewsTable = Database.db['reviews']
+    reviewTable = Database.db['reviews']
     spotTable = Database.db['spots']
     userTable = Database.db['users']
 
@@ -31,8 +30,8 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
 
             # Extract and validate fields from the request
             mSpot = self.request.arguments.get('spotId')
-
-             # Validation for spotId
+            
+            # Validation for spotId
             if not mSpot:
                 message = 'SpotId is required'
                 code = 4033
@@ -45,7 +44,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 message = 'Invalid spotId format'
                 code = 4033
                 raise Exception
-
+            
             spot = await self.spotTable.find_one({'_id': mSpot})
             if not spot:
                 message = 'Invalid spotId. Spot not found.'
@@ -53,7 +52,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 raise Exception
 
             mUser = self.user_id
-
+            
             # Validation for userId
             if not mUser:
                 message = 'UserId is required'
@@ -67,7 +66,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 message = 'Invalid userId format'
                 code = 4033
                 raise Exception
-
+            
             user = await self.userTable.find_one({'_id': mUser})
             if not user:
                 message = 'Invalid userId. User not found.'
@@ -90,30 +89,34 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 raise Exception
 
             mFeedBack = self.request.arguments.get('feedback')
-
+            
             # Validation for feedback
             if not (10 <= len(mFeedBack) <= 500):
                 message = 'Feedback must be between 10 and 500 characters'
                 code = 4037
                 raise Exception
             
-            # Create the user data dictionary
+             # Create the review data dictionary
+            current_time = int(time.time())
+            expiry_time = current_time + (5 * 60)
+            
             data = {
                 'spotId': mSpot,
                 'userId': mUser,
                 'rating': mRating,
                 'feedback': mFeedBack,
                 'review_time': int(time.time()),
-                'status': 'unapproved'
-
+                'expiry_time': expiry_time,
+                'replies': [],
+                'approved': False
             }
 
-            # Insert the user into the database
+            # Insert the review into the database
             addReview = await self.reviewTable.insert_one(data)
             if addReview.inserted_id:
                 code = 1004
                 status = True
-                message = 'Review added successfully'
+                message = 'Review submitted for approval'
                 result.append({
                     'reviewId': str(addReview.inserted_id)
                 })
@@ -121,12 +124,12 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
                 code = 1005
                 message = 'Failed to add review'
                 raise Exception
-            
+        
         except Exception as e:
-            if not len(message):
+            if not message:
                 message = 'Internal Server Error'
                 code = 1005
-
+        
         response = {
             'code': code,
             'message': message,
@@ -134,7 +137,7 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
         }
 
         try:
-            if len(result):
+            if result:
                 response['result'] = result
 
             self.write(response)
@@ -143,122 +146,98 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
         except Exception as e:
             message = 'There is some issue'
             code = 1006
- 
-   
 
-    @xenProtocol
-    # PUT method for updating review by reviewId
-    async def put(self):
-        code = 4014
+
+
+    # Get reviews using Spot Id
+    async def get(self):
+        code = 4000
         status = False
-        result = None
+        result = []
         message = ''
 
         try:
-            # Parse the request body as JSON
             try:
-                self.request.arguments = json.loads(self.request.body.decode())
-            except Exception as e:
-                code = 5015
-                message = 'Invalid JSON'
-                raise Exception
+                mSpotId = self.get_argument('spotId')
+                if not mSpotId:
+                    raise Exception
+                mSpotId = ObjectId(mSpotId)
+            except:
+                mSpotId = None
 
-            mReviewId = self.request.arguments.get('reviewId')
+            query = {}
+            if mSpotId:
+                query['spotId'] = mSpotId
+            query['approved'] = True
 
-            if not mReviewId:
-                code = 5016
-                message = 'ReviewId is required'
-                raise Exception
+            aggregation_pipeline = [
+            {
+                '$match': query
+            },
+            {
+                '$lookup': {
+                    'from': 'users',
+                    'localField': 'userId',
+                    'foreignField': '_id',
+                    'as': 'user_details'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'users',
+                    'localField': 'replies.userId',
+                    'foreignField': '_id',
+                    'as': 'reply_users'
+                }
+            },
+            {
+                '$addFields': {
+                    'user_details': {
+                        '$first': '$user_details'
+                    },
 
-            try:
-                mReviewId = ObjectId(mReviewId)
-            except Exception as e:
-                code = 5017
-                message = "Invalid reviewId. Review not found."
-                raise Exception
-
-            # Extract and validate fields from the request
-            mSpot = self.request.arguments.get('spotId')
-
-            # Validation for spotId
-            if not mSpot:
-                message = 'SpotId is required'
-                code = 4033
-                raise Exception
-            
-            # Check if the spotId exists in the spotTable
-            spot = await self.spotTable.find_one({'_id': ObjectId(mSpot)})
-            if not spot:
-                message = 'Invalid spotId. Spot not found.'
-                code = 4034
-                raise Exception
-
-            mUser = self.request.arguments.get('userId')
-
-            # Validation for userId
-            if not mUser:
-                message = 'UserId is required'
-                code = 4033
-                raise Exception
-            
-            # Check if the userId exists in the userTable
-            user = await self.userTable.find_one({'_id': ObjectId(mUser)})
-            if not user:
-                message = 'Invalid userId. User not found.'
-                code = 4034
-                raise Exception
-
-            mRating = self.request.arguments.get('rating')
-            
-            # Validation for rating
-            try:
-                mRating = float(mRating)
-            except ValueError:
-                message = 'Rating must be a number'
-                code = 4035
-                raise Exception
-            
-            if not (1 <= mRating <= 5):
-                message = 'Rating must be between 1 and 5'
-                code = 4036
-                raise Exception
-
-            mFeedBack = self.request.arguments.get('feedback')
-
-            # Validation for feedback
-            if not (10 <= len(mFeedBack) <= 500):
-                message = 'Feedback must be between 10 and 500 characters'
-                code = 4037
-                raise Exception
-            
-
-            # Create the review data dictionary
-            updated_data = {
-                'spotId': mSpot,
-                'userId': mUser,
-                'rating': mRating,
-                'feedback': mFeedBack
+                    'replies': {
+                        '$map': {
+                            'input': '$replies',
+                            'as': 'reply',
+                            'in': {
+                                'user_name': {
+                                    '$arrayElemAt': ['$reply_users.name', {'$indexOfArray': ['$reply_users._id', '$$reply.userId']}]
+                                },
+                                'comment': '$$reply.comment'
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'user_name': '$user_details.name',
+                    'feedback': 1,
+                    'rating': 1,
+                    'replies': 1
+                }
             }
+        ]
 
-            # Update review in the database
-            updated_result = await self.reviewTable.update_one(
-                {'_id': ObjectId(mReviewId)},
-                {'$set': updated_data}
-            )
 
-            if updated_result.modified_count > 0:
-                code = 4019
+            cursor = self.reviewTable.aggregate(aggregation_pipeline)
+            async for reviews in cursor:
+                result.append(reviews)
+
+            if result:
+                message = 'Found'
+                code = 2000
                 status = True
-                message = 'Updated Successfully'
             else:
-                code = 4020
-                message = "Review not found or no changes made"
+                message = 'No reviews found'
+                code = 4002
 
-        except Exception as e:
+        except Exception:
             if not message:
-                code = 4021
                 message = 'Internal server error'
-                raise Exception
+                code = 5010
 
         response = {
             'code': code,
@@ -267,16 +246,20 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
         }
 
         try:
-            self.write(response)
-            self.finish()
+            if result:
+                response['result'] = result
 
-        except Exception as e:
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps(response, default=str))
+            await self.finish()
+
+        except Exception:
             message = 'There is some issue'
-            code = 1006
+            code = 5011
             raise Exception
 
 
-
+    
 
     @xenProtocol
     # Delete method for deleting review
@@ -330,109 +313,3 @@ class ReviewHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 6022
             raise Exception
-
-
-
-
-    # Get reviews using Spot Id
-    async def get(self):
-        code = 4000
-        status = False
-        result = []
-        message = ''
-
-        try:
-            try:
-                mSpotId = self.get_argument('spotId')
-                if not mSpotId:
-                    raise Exception
-                mSpotId = ObjectId(mSpotId)
-            except:
-                mSpotId = None
-
-            if mSpotId:
-                query = {'spotId': mSpotId}
-            else:
-                query = {}
-
-            aggregation_pipeline = [
-                {
-                    '$match': query
-                },
-                {
-                    '$lookup': {
-                        'from': 'users',
-                        'localField': 'userId',
-                        'foreignField': '_id',
-                        'as': 'user_details'
-                    }
-                },
-                {
-                    '$addFields': {
-                        'user_details': {
-                            '$first': '$user_details'
-                        },
-                    }
-                },
-                {
-                    '$project': {
-                        '_id': 0,
-                        'user_name': '$user_details.name',
-                        'feedback': 1,
-                        'rating': 1,
-                    }
-                },
-                {
-                    '$group': {
-                        '_id': None,
-                        'average_rating': {'$avg': '$rating'},
-                        'reviews': {'$push': '$$ROOT'}
-                    }
-                },
-                {
-                    '$project': {
-                        '_id': 0,
-                        'average_rating': 1,
-                        'reviews': 1
-                    }
-                }
-            ]
-
-            cursor = self.reviewsTable.aggregate(aggregation_pipeline)
-            async for reviews in cursor:
-                result.append(reviews)
-
-
-            if result:
-                message = 'Found'
-                code = 2000
-                status = True
-            else:
-                message = 'No reviews found'
-                code = 4002
-
-        except Exception as e:
-            if not message:
-                message = 'Internal server error'
-                code = 5010
-
-        response = {
-            'code': code,
-            'message': message,
-            'status': status,
-        }
-
-        try:
-            if result:
-                response['result'] = result
-
-            self.set_header('Content-Type', 'application/json')
-            self.write(json.dumps(response, default=str))
-            await self.finish()
-
-        except Exception as e:
-            message = 'There is some issue'
-            code = 5011
-            raise Exception
-
-    
