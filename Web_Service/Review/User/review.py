@@ -5,7 +5,7 @@ from bson.objectid import ObjectId
 import tornado.web
 from con import Database 
 
-class ReviewHandler(tornado.web.RequestHandler, Database):
+class ReviewHandlerUser(tornado.web.RequestHandler, Database):
     reviewTable = Database.db['reviews']
     spotTable = Database.db['spots']
     userTable = Database.db['users']

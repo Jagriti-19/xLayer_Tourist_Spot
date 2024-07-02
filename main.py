@@ -1,28 +1,32 @@
 
 
-from Web_Service.Admin.getusers import AdminHandler
-from Web_Service.Athentication.User.signup import UserHandler
-from Web_Service.Athentication.User.login import UserLogInHandler
-from Web_Service.Athentication.logout import LogoutHandler
-from Web_Service.Booking.Admin.booking import BookingHandlerAdmin
-from Web_Service.Booking.Admin.bookingsbyspotid import GetBookingsBySpotId
+from Web_Service.Admin.getUsers import AdminHandler
+from Web_Service.Athentication.signIn import SignInHandler
+from Web_Service.Athentication.signOut import SignOutHandler
+from Web_Service.Athentication.signup import SignUpHandler
+from Web_Service.Booking.Admin.bookingsBySpotId import GetBookingsBySpotId
+from Web_Service.Booking.Admin.getBookings import BookingHandlerAdmin
 from Web_Service.Booking.User.booking import BookingHandlerUser
 from Web_Service.ForgetPassword.otp import OTPHandler
-from Web_Service.ForgetPassword.reset import ResetPasswordHandler
-from Web_Service.ForgetPassword.verify import VerifyOTPHandler
-from Web_Service.Review.Admin.reviews import ReviewsHandler
-from Web_Service.Review.User.reply import ReplyHandler
-from Web_Service.Review.User.review import ReviewHandler
+from Web_Service.ForgetPassword.reset import ResetHandler
+from Web_Service.ForgetPassword.verify import VerifyHandler
+from Web_Service.Review.Admin.reply import ReplyHandler
+from Web_Service.Review.Admin.review import ReviewHandlerAdmin
+from Web_Service.Review.User.review import ReviewHandlerUser
+from Web_Service.Service.excel import ExcelHandler
 from Web_Service.Service.pdf import PDFHandler
-from Web_Service.Session.get import SessionHandler
+from Web_Service.Session.getSession import SessionHandler
+from Web_Service.Spot.Admin.spot import SpotHandler
+from Web_Service.Spot.User.allSpots import GetAllSpotsHandler
+from Web_Service.Spot.User.getByDistrict import DistrictHandler
+from Web_Service.Spot.User.search import SearchHandler
+from Web_Service.Status.Admin.checkIn import CheckInHandlerAdmin
+from Web_Service.Status.Admin.checkOut import CheckOutHandlerAdmin
 from Web_Service.Status.User.cancel import CancelHandler
-from Web_Service.Status.User.checkIn import CheckInHandler
-from Web_Service.Status.User.checkOut import CheckOutHandler
+from Web_Service.Status.User.checkIn import CheckInHandlerUser
+from Web_Service.Status.User.checkOut import CheckOutHandlerUser
 from Web_Service.Status.User.upcoming import UpcomingHandler
-from Web_Service.Tourist.Admin.spot import SpotHandler
-from Web_Service.Tourist.User.allSpots import GetAllSpotsHandler
-from Web_Service.Tourist.User.getbydistrict import DistrictHandler
-from Web_Service.Tourist.User.search import SearchHandler
+from Web_Service.User.user import UserHandler
 import tornado.ioloop
 import tornado.web
 from con import Database
@@ -37,28 +41,32 @@ class MainHandler(tornado.web.RequestHandler):
 def make_app(db):
     return tornado.web.Application([
         (r'/web/', MainHandler),
-        (r'/web/users', UserHandler),
-        (r'/web/admins', AdminHandler),
-        (r'/web/spots', SpotHandler),
-        (r'/web/login', UserLogInHandler),
-        (r'/web/log-out', LogoutHandler),
+        (r'/web/sign-up', SignUpHandler),
+        (r'/web/sign-in', SignInHandler),
+        (r'/web/sign-out', SignOutHandler),
+        (r'/web/session', SessionHandler),
         (r'/web/otp-send', OTPHandler),
-        (r'/web/verify', VerifyOTPHandler),
-        (r'/web/reset', ResetPasswordHandler),
+        (r'/web/verify', VerifyHandler),
+        (r'/web/reset', ResetHandler),
+        (r'/web/admins', AdminHandler),
+        (r'/web/users', UserHandler),
+        (r'/web/spots', SpotHandler),
         (r'/web/search', SearchHandler),
-        (r'/web/searching', GetAllSpotsHandler),
-        (r'/web/booking', BookingHandlerUser),
-        (r'/web/bookings', BookingHandlerAdmin),
-        (r'/web/get-bookings', GetBookingsBySpotId),
+        (r'/web/district', DistrictHandler),
+        (r'/web/list', GetAllSpotsHandler),
+        (r'/web/booking/user', BookingHandlerUser),
+        (r'/web/booking/admin', BookingHandlerAdmin),
+        (r'/web/bookings', GetBookingsBySpotId),
         (r'/web/upcoming', UpcomingHandler),
-        (r'/web/check-in', CheckInHandler),
-        (r'/web/check-out', CheckOutHandler),
+        (r'/web/check-in/admin', CheckInHandlerAdmin),
+        (r'/web/check-in/user', CheckInHandlerUser),
+        (r'/web/check-out/admin', CheckOutHandlerAdmin),
+        (r'/web/check-out/user', CheckOutHandlerUser),
         (r'/web/cancels', CancelHandler),
         (r'/web/pdf', PDFHandler),
-        (r'/web/district', DistrictHandler),
-        (r'/web/session', SessionHandler),
-        (r'/web/review', ReviewHandler),
-        (r'/web/reviews', ReviewsHandler),
+        (r'/web/excel', ExcelHandler),
+        (r'/web/review/user', ReviewHandlerUser),
+        (r'/web/review/admin', ReviewHandlerAdmin),
         (r'/web/reply', ReplyHandler),
         
     ])

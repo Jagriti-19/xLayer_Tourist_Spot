@@ -6,7 +6,7 @@ from bson.objectid import ObjectId
 import tornado.web
 from con import Database
 
-class ResetPasswordHandler(tornado.web.RequestHandler, Database):
+class ResetHandler(tornado.web.RequestHandler, Database):
     userTable = Database.db['users']
 
     async def post(self):

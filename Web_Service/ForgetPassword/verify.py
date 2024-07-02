@@ -6,7 +6,7 @@ from bson.objectid import ObjectId
 
 SECRET_KEY = "Xlayer.in"
 
-class VerifyOTPHandler(tornado.web.RequestHandler, Database):
+class VerifyHandler(tornado.web.RequestHandler, Database):
     userTable = Database.db['users']
 
     async def post(self):

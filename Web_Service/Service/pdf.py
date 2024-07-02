@@ -63,7 +63,7 @@ class PDFHandler(tornado.web.RequestHandler, Database):
                         'name': '$user_details.name',
                         'spot_name': '$spot_details.name',
                         'total': 1,
-                        'available_dates': 1,
+                        'date': 1,
                         'status': 1,
                         'entry_fee': 1,
                         'quantity': 1,

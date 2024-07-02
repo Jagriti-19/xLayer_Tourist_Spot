@@ -139,24 +139,24 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 message = 'Invalid email format'
                 raise Exception
 
-            mAvailableDates = self.request.arguments.get('available_dates')
+            mDate = self.request.arguments.get('date')
             
              # Validation for available booking date
-            if not mAvailableDates:
-                message = 'Available booking date is required'
+            if not mDate:
+                message = 'Booking date is required'
                 code = 4060
                 raise Exception
 
             # Ensure date is in dd-mm-yyyy format
             date_pattern = r'^\d{2}-\d{2}-\d{4}$'
-            if not re.match(date_pattern, mAvailableDates):
+            if not re.match(date_pattern, mDate):
                 message = 'Date must be in "dd-mm-yyyy" format'
                 code = 4061
                 raise Exception
 
             # Check if date is current or future date
             try:
-                booking_date = datetime.strptime(mAvailableDates, '%d-%m-%Y')
+                booking_date = datetime.strptime(mDate, '%d-%m-%Y')
                 if booking_date < datetime.now():
                     message = 'Booking date must be current or future date'
                     code = 4062
@@ -239,18 +239,18 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
             # Validation for visiting hours
-            for day in days:
-                if not mVisitingHours.get(day):
-                    message = f'{day.capitalize()} visiting hours are required'
-                    code = 4045
-                    raise Exception
+            # for day in days:
+            #     if not mVisitingHours.get(day):
+            #         message = f'{day.capitalize()} visiting hours are required'
+            #         code = 4045
+            #         raise Exception
 
-                visiting_hours_pattern = r'^\d{2}:\d{2} (AM|PM) - \d{2}:\d{2} (AM|PM)$'
+            #     visiting_hours_pattern = r'^\d{2}:\d{2} (AM|PM) - \d{2}:\d{2} (AM|PM)$'
                 
-                if not re.match(visiting_hours_pattern, mVisitingHours.get(day)):
-                    message = f'{day.capitalize()} visiting hours must be in "HH:MM AM/PM - HH:MM AM/PM" format'
-                    code = 4046
-                    raise Exception
+            #     if not re.match(visiting_hours_pattern, mVisitingHours.get(day)):
+            #         message = f'{day.capitalize()} visiting hours must be in "HH:MM AM/PM - HH:MM AM/PM" format'
+            #         code = 4046
+            #         raise Exception
                 
             
             mBookingDateTime = int(time.time())
@@ -282,7 +282,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                 'name': mName,
                 'email': mEmail,
                 'mobile': mMobile,
-                'available_dates': mAvailableDates,
+                'date': mDate,
                 'entry_fee': {
                     'adult': mEntryFeeAd,
                     'child': mEntryFeeCh
@@ -291,13 +291,12 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     'adult': mQuantityAd,
                     'child': mQuantityCh
                 },
-                'visiting_hours': mVisitingHours,
+                # 'visiting_hours': mVisitingHours,
                 'total': mTotal,
                 'booking_date': mBookingDateTime,
                 'ticketId': mTicket,
                 'status': 'Pending'
             } 
-
             # Insert the booking into the database
             addBooking = await self.bookTable.insert_one(booking_data)
             if addBooking.inserted_id:
@@ -320,8 +319,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
                     # If the update didn't modify exactly one document, handle accordingly
                     code = 1005
                     message = 'Failed to update available capacity for the spot'
-                    raise Exception
-               
+                    raise Exception 
                
             else:
                 code = 1005
@@ -332,7 +330,7 @@ class BookingHandlerUser(tornado.web.RequestHandler, Database):
             if not message:
                 message = 'Internal Server Error'
                 code = 1005
-            print(e)
+
 
         response = {
             'code': code,
@@ -359,3 +357,5 @@ def generate_ticket_id():
     prefix = '#'  # Prefix for the ticket ID
     ticket_number = random.randint(10000, 99999)  # Generate a random 5-digit number
     return f"{prefix}{ticket_number}"
+
+
