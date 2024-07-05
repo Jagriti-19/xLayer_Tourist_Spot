@@ -97,7 +97,7 @@ class PDFHandler(tornado.web.RequestHandler, Database):
             y_position -= line_height
             p.drawString(100, y_position, f"Total: {booking.get('total')}")
             y_position -= line_height
-            p.drawString(100, y_position, f"Date: {booking.get('available dates')}")
+            p.drawString(100, y_position, f"Date: {booking.get('date')}")
             y_position -= line_height
             p.drawString(100, y_position, f"Status: {booking.get('status')}")
             y_position -= line_height

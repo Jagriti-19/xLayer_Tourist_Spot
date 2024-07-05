@@ -3,10 +3,11 @@
 from Web_Service.Admin.getUsers import AdminHandler
 from Web_Service.Athentication.signIn import SignInHandler
 from Web_Service.Athentication.signOut import SignOutHandler
-from Web_Service.Athentication.signup import SignUpHandler
+from Web_Service.Athentication.signUp import SignUpHandler
 from Web_Service.Booking.Admin.bookingsBySpotId import GetBookingsBySpotId
 from Web_Service.Booking.Admin.getBookings import BookingHandlerAdmin
 from Web_Service.Booking.User.booking import BookingHandlerUser
+from Web_Service.Capacity.capacity import CapacityHandler
 from Web_Service.ForgetPassword.otp import OTPHandler
 from Web_Service.ForgetPassword.reset import ResetHandler
 from Web_Service.ForgetPassword.verify import VerifyHandler
@@ -18,6 +19,7 @@ from Web_Service.Service.pdf import PDFHandler
 from Web_Service.Session.getSession import SessionHandler
 from Web_Service.Spot.Admin.spot import SpotHandler
 from Web_Service.Spot.User.allSpots import GetAllSpotsHandler
+from Web_Service.Spot.User.getAvailableCapacity import GetAvailableCapacity
 from Web_Service.Spot.User.getByDistrict import DistrictHandler
 from Web_Service.Spot.User.search import SearchHandler
 from Web_Service.Status.Admin.checkIn import CheckInHandlerAdmin
@@ -68,6 +70,8 @@ def make_app(db):
         (r'/web/review/user', ReviewHandlerUser),
         (r'/web/review/admin', ReviewHandlerAdmin),
         (r'/web/reply', ReplyHandler),
+        (r'/web/capacity/admin', CapacityHandler),
+        (r'/web/capacity/user', GetAvailableCapacity),
         
     ])
 

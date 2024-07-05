@@ -45,6 +45,8 @@ class SignUpHandler(tornado.web.RequestHandler, Database):
                 message = 'Name must only contain alphabetic characters and spaces'
                 code = 4036
                 raise Exception
+            
+            mName = mName.title()
 
 
             mEmail = self.request.arguments.get('email')
@@ -76,8 +78,8 @@ class SignUpHandler(tornado.web.RequestHandler, Database):
 
             # Check if mMobile is a valid integer
             try:
-                mobile_number = int(mMobile)
-            except ValueError:
+                mMobile = int(mMobile)
+            except Exception as e:
                 code = 4040
                 message = 'Mobile number must be an integer'
                 raise Exception

@@ -67,6 +67,9 @@ class VerifyHandler(tornado.web.RequestHandler, Database):
             'status': status,
         }
 
+        if otp and status:
+            response['result'] = [{'otp': otp}]
+
         try:
             self.set_header("Content-Type", "application/json")
             self.write(response)

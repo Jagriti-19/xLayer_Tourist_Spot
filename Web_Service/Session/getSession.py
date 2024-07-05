@@ -18,6 +18,17 @@ class SessionHandler(tornado.web.RequestHandler, Database):
         message = ''
 
         try:
+            user = await self.userTable.find_one({'_id': ObjectId(self.user_id)})
+            if not user:
+                message = 'User not found'
+                code = 4002
+                raise Exception
+
+            mUserRole = user.get('role')
+            if mUserRole != 'admin':
+                message = 'Access forbidden: insufficient permissions'
+                code = 4030
+                raise Exception
             try:
                 mUserId = self.get_argument('user_id')
                 if not mUserId:

@@ -10,6 +10,7 @@ from uuid import uuid4
 class SpotHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
     userTable = Database.db['users']
+    capacityTable = Database.db['capacity']
 
     @xenProtocol
     # POST method for creating spots
@@ -170,20 +171,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
 
 
 
-            mAvailableCapacity = data.get('available_capacity')
-
-            # Validation for capacity
-            if mAvailableCapacity is None:
-                message = 'Available Capacity is required'
-                code = 4033
-                raise Exception
-            
-            if mAvailableCapacity <= 0:
-                    message = 'Available Capacity must be an integer'
-                    code = 4034
-                    raise Exception
-
-
             # Create the spot data dictionary
             spot_data = {
                 'name': mName,
@@ -196,7 +183,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     'child': mEntryFeeCh
                 },
                 'visiting_hours': mVisitingHours,
-                'available_capacity': mAvailableCapacity,
                 'images': images
                 
             }

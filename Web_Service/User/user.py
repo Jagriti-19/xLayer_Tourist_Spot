@@ -141,11 +141,18 @@ class UserHandler(tornado.web.RequestHandler, Database):
                 message = 'Mobile number is required'
                 raise Exception
 
-            # Regular expression for validating mobile format (10 to 12 digits)
-            mobile_regex = r'^\d{10,12}$'
-            if not re.match(mobile_regex, mMobile):
+            # Check if mMobile is a valid integer
+            try:
+                mMobile = int(mMobile)
+            except Exception as e:
                 code = 4040
-                message = 'Invalid mobile number format. Mobile number must be between 10 to 12 digits and contain only digits.'
+                message = 'Mobile number must be an integer'
+                raise Exception
+
+            # Check if the length of the mobile number is between 10 to 12 digits
+            if not (10 <= len(str(mMobile)) <= 12):
+                code = 4041
+                message = 'Mobile number should be between 10 to 12 digits'
                 raise Exception
 
 

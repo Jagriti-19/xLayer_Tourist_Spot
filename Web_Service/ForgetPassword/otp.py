@@ -69,11 +69,6 @@ class OTPHandler(tornado.web.RequestHandler, Database):
             status = True
             message = 'Password reset OTP sent successfully'
 
-        except json.JSONDecodeError:
-            message = 'Invalid JSON in request body'
-            code = 4024
-        except ValueError as ve:
-            message = str(ve)
         except Exception as e:
             message = 'Internal Server Error'
             code = 1005
@@ -83,7 +78,8 @@ class OTPHandler(tornado.web.RequestHandler, Database):
             'message': message,
             'status': status,
         }
-
+        if otp and status:
+            response['result'] = [{'otp': otp}]    
         try:
             self.set_header("Content-Type", "application/json")
             self.write(response)
@@ -92,7 +88,6 @@ class OTPHandler(tornado.web.RequestHandler, Database):
             message = 'There is some issue'
             code = 1006
             raise Exception
-
 
 
 def send_email(to_email, subject, message):

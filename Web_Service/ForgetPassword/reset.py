@@ -1,9 +1,8 @@
 import json
-import re
 import bcrypt
 import time
-from bson.objectid import ObjectId
 import tornado.web
+from bson.objectid import ObjectId
 from con import Database
 
 class ResetHandler(tornado.web.RequestHandler, Database):
@@ -21,8 +20,8 @@ class ResetHandler(tornado.web.RequestHandler, Database):
             except Exception as e:
                 code = 4024
                 message = "Invalid JSON"
-                raise
-
+                raise Exception
+            
             otp = self.request.arguments.get('otp')
 
             # Validation
@@ -30,11 +29,9 @@ class ResetHandler(tornado.web.RequestHandler, Database):
                 code = 4037
                 message = 'OTP is required'
                 raise Exception
-            
 
-            mPassword = self.request.arguments.get('new_password')
-
-             # Validation
+            mPassword = self.request.arguments.get('newPassword')
+            # Validation
             if not mPassword:
                 code = 4041
                 message = 'Password is required'
@@ -73,24 +70,21 @@ class ResetHandler(tornado.web.RequestHandler, Database):
                 code = 4047
                 message = 'Password must not be a commonly used password'
                 raise Exception
-            
-            
-            mConfirmPassword = self.request.arguments.get('confirm_password')
-            
+
+            mConfirmPassword = self.request.arguments.get('confirmPassword')
+
             # Validation
             if not mConfirmPassword:
                 code = 4048
                 message = 'Confirm password is required'
                 raise Exception
 
-
             # Validate password confirmation
             if mPassword != mConfirmPassword:
                 code = 1003
                 message = 'Passwords do not match'
                 raise Exception
-             
-            
+
             mEmail = self.request.arguments.get('email')
 
             # Find user by OTP and email
@@ -99,7 +93,6 @@ class ResetHandler(tornado.web.RequestHandler, Database):
                 code = 4049
                 message = 'Invalid OTP or Email'
                 raise Exception
-
             # Verify OTP expiration time
             otp_expiry = user.get('otp_expiry')
             if not otp_expiry or time.time() > otp_expiry:
@@ -125,9 +118,9 @@ class ResetHandler(tornado.web.RequestHandler, Database):
                 message = 'Failed to reset password'
 
         except Exception as e:
-            message = 'Internal Server Error'
+            if not message:
+                message = 'Internal Server Error'
             code = 1005
-            print(e)
 
         response = {
             'code': code,

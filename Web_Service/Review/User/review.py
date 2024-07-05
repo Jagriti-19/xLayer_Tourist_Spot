@@ -98,7 +98,7 @@ class ReviewHandlerUser(tornado.web.RequestHandler, Database):
             
              # Create the review data dictionary
             current_time = int(time.time())
-            expiry_time = current_time + (5 * 60)
+            expiry_time = current_time + (50 * 60)
             
             data = {
                 'spotId': mSpot,
@@ -155,6 +155,7 @@ class ReviewHandlerUser(tornado.web.RequestHandler, Database):
         status = False
         result = []
         message = ''
+        average_rating = 0
 
         try:
             try:
@@ -171,60 +172,78 @@ class ReviewHandlerUser(tornado.web.RequestHandler, Database):
             query['approved'] = True
 
             aggregation_pipeline = [
-            {
-                '$match': query
-            },
-            {
-                '$lookup': {
-                    'from': 'users',
-                    'localField': 'userId',
-                    'foreignField': '_id',
-                    'as': 'user_details'
-                }
-            },
-            {
-                '$lookup': {
-                    'from': 'users',
-                    'localField': 'replies.userId',
-                    'foreignField': '_id',
-                    'as': 'reply_users'
-                }
-            },
-            {
-                '$addFields': {
-                    'user_details': {
-                        '$first': '$user_details'
-                    },
-
-                    'replies': {
-                        '$map': {
-                            'input': '$replies',
-                            'as': 'reply',
-                            'in': {
-                                'user_name': {
-                                    '$arrayElemAt': ['$reply_users.name', {'$indexOfArray': ['$reply_users._id', '$$reply.userId']}]
-                                },
-                                'comment': '$$reply.comment'
+                {
+                    '$match': query
+                },
+                {
+                    '$lookup': {
+                        'from': 'users',
+                        'localField': 'userId',
+                        'foreignField': '_id',
+                        'as': 'user_details'
+                    }
+                },
+                {
+                    '$lookup': {
+                        'from': 'users',
+                        'localField': 'replies.userId',
+                        'foreignField': '_id',
+                        'as': 'reply_users'
+                    }
+                },
+                {
+                    '$addFields': {
+                        'user_details': {
+                            '$first': '$user_details'
+                        },
+                        'replies': {
+                            '$map': {
+                                'input': '$replies',
+                                'as': 'reply',
+                                'in': {
+                                    'user_name': {
+                                        '$arrayElemAt': ['$reply_users.name', {'$indexOfArray': ['$reply_users._id', '$$reply.userId']}]
+                                    },
+                                    'comment': '$$reply.comment'
+                                }
                             }
                         }
                     }
+                },
+                {
+                    '$project': {
+                        '_id': 0,
+                        'user_name': '$user_details.name',
+                        'feedback': 1,
+                        'rating': 1,
+                        'replies': 1
+                    }
                 }
-            },
-            {
-                '$project': {
-                    '_id': 0,
-                    'user_name': '$user_details.name',
-                    'feedback': 1,
-                    'rating': 1,
-                    'replies': 1
-                }
-            }
-        ]
-
+            ]
 
             cursor = self.reviewTable.aggregate(aggregation_pipeline)
             async for reviews in cursor:
                 result.append(reviews)
+
+            # Calculate the average rating
+            if mSpotId:
+                rating_pipeline = [
+                    {
+                        '$match': {
+                            'spotId': mSpotId,
+                            'approved': True
+                        }
+                    },
+                    {
+                        '$group': {
+                            '_id': '$spotId',
+                            'averageRating': {'$avg': '$rating'}
+                        }
+                    }
+                ]
+
+                async for rating_result in self.reviewTable.aggregate(rating_pipeline):
+                    average_rating = rating_result.get('averageRating', 0)
 
             if result:
                 message = 'Found'
@@ -243,6 +262,7 @@ class ReviewHandlerUser(tornado.web.RequestHandler, Database):
             'code': code,
             'message': message,
             'status': status,
+            'average_rating': average_rating
         }
 
         try:
