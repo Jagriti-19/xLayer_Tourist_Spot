@@ -170,8 +170,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     if not mVideo:
                         raise Exception(f'{index} video is missing')
                     
-                    if len(mVideo['body']) > 6 * 1024 * 1024:
-                        raise Exception('Video size is too large. Maximum size allowed is 4 MB')
+                    if len(mVideo['body']) > 10 * 1024 * 1024:
+                        raise Exception('Video size is too large. Maximum size allowed is 10 MB')
 
                     
                     mVideoFile = self.save_media(mVideo, f'video_{index}')
@@ -644,7 +644,7 @@ class SpotHandler(tornado.web.RequestHandler, Database):
 
             if compress and mime_type.startswith('video/'):
                 compressed_file_path = self.compress_video(file_path)
-                os.remove(file_path)  # Remove the original video file
+                os.remove(file_path)  
                 file_path = compressed_file_path
 
             return file_name
