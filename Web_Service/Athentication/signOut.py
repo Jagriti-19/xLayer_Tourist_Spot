@@ -9,12 +9,17 @@ class SignOutHandler(tornado.web.RequestHandler, Database):
 
     @xenProtocol
     async def post(self):
-        code = 1000
-        status = True
-        message = 'User logged out successfully'
-        result = []
+        code = 4014
+        status = False
+        message = ''
+        
+        
 
         try:
+            code = 1000
+            status = True
+            message = 'User logged out successfully'
+
             # Find the session by sessionId
             session = await self.sessionTable.find_one({"_id": ObjectId(self.sessionId)})
             
