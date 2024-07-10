@@ -3,7 +3,11 @@ from con import Database
 import tornado.web
 from PyPDF2 import PdfWriter, PdfReader
 from io import BytesIO
-from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from bson.objectid import ObjectId
 
 class PDFHandler(tornado.web.RequestHandler, Database):
@@ -12,13 +16,11 @@ class PDFHandler(tornado.web.RequestHandler, Database):
 
     @xenProtocol
     async def get(self):
-            
         self.set_header('Content-Type', 'application/pdf')
         self.set_header('Content-Disposition', 'attachment; filename="booking_details.pdf"')
 
         booking_id = self.get_argument('bookingId', None)
         user_id = self.user_id
-
 
         if not booking_id:
             self.write("No bookingId provided")
@@ -81,36 +83,52 @@ class PDFHandler(tornado.web.RequestHandler, Database):
 
             booking = booking[0]
 
+            # Define greenish colors
+            header_background_color = colors.HexColor("#006400")  # Dark Green for header
+            header_text_color = colors.whitesmoke
+            body_background_color = colors.HexColor("#98FB98")  # Pale Green for body
+            grid_color = colors.HexColor("#006400")  # Dark Green for grid lines
+
             # Generate PDF
             output = BytesIO()
-            p = canvas.Canvas(output)
+            doc = SimpleDocTemplate(output, pagesize=letter)
 
-            # Add details to the PDF with correct vertical spacing
-            y_position = 730
-            line_height = 20
+            styles = getSampleStyleSheet()
+            elements = []
 
-            p.drawString(100, y_position, f"Ticket Number: {booking.get('ticketId')}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Spot Name: {booking.get('spot_name')}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Name: {booking.get('name')}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Total: {booking.get('total')}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Date: {booking.get('date')}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Status: {booking.get('status')}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Entry Fee (Adult): {booking['entry_fee']['adult']}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Entry Fee (Child): {booking['entry_fee']['child']}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Quantity (Adult): {booking['quantity']['adult']}")
-            y_position -= line_height
-            p.drawString(100, y_position, f"Quantity (Child): {booking['quantity']['child']}")
+            title = Paragraph("Booking Details", styles['Title'])
+            elements.append(title)
+            elements.append(Spacer(1, 12))
 
-            p.showPage()
-            p.save()
+            data = [
+                ["Ticket Number", booking.get('ticketId')],
+                ["Spot Name", booking.get('spot_name')],
+                ["Name", booking.get('name')],
+                ["Total", booking.get('total')],
+                ["Date", booking.get('date')],
+                ["Status", booking.get('status')],
+                ["Entry Fee (Adult)", booking['entry_fee']['adult']],
+                ["Entry Fee (Child)", booking['entry_fee']['child']],
+                ["Quantity (Adult)", booking['quantity']['adult']],
+                ["Quantity (Child)", booking['quantity']['child']]
+            ]
+
+            table = Table(data, colWidths=[2*inch, 4*inch])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), header_background_color),
+                ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), body_background_color),
+                ('GRID', (0, 0), (-1, -1), 1, grid_color),
+                ('BOX', (0, 0), (-1, -1), 2, grid_color),
+                ('INNERGRID', (0, 0), (-1, -1), 0.5, grid_color),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ]))
+
+            elements.append(table)
+            doc.build(elements)
 
             # Prepare the PDF for download
             output.seek(0)

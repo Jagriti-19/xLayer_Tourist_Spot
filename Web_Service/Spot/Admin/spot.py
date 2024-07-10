@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from JWTConfiguration.auth import xenProtocol
 import tornado.web
@@ -6,14 +7,15 @@ from con import Database
 from bson.objectid import ObjectId
 from mimetypes import MimeTypes
 from uuid import uuid4
+from moviepy.editor import VideoFileClip
 
 class SpotHandler(tornado.web.RequestHandler, Database):
     spotTable = Database.db['spots']
     userTable = Database.db['users']
     capacityTable = Database.db['capacity']
 
-    @xenProtocol
     # POST method for creating spots
+    @xenProtocol
     async def post(self):
         code = 4014
         status = False
@@ -32,7 +34,7 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 message = 'Access forbidden: insufficient permissions'
                 code = 4030
                 raise Exception   
-                  
+
             try:
                 files = {}
                 args = {}
@@ -74,7 +76,6 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 message = 'Description is required'
                 code = 4033
                 raise Exception
-        
 
             mLocation = data.get('location')
 
@@ -148,28 +149,48 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     code = 4046
                     raise Exception
 
-
             files = self.request.files.get('photos', [])  
             images = []
             for index, mPhoto in enumerate(files):
                 try:
                     if not mPhoto:
                         raise Exception(f'{index} photo is missing')
-                    mImage = self.save_photo(mPhoto, f'photo_{index}')
+                    mImage = self.save_media(mPhoto, f'photo_{index}')
                     images.append({'fileName': mImage})
                 except Exception as e:
                     message = str(e)
                     code = 4553
                     raise Exception
 
-           
-            # Validation for photos
+            # Validate video files
+            videos = self.request.files.get('videos', [])
+            video_files = []
+            for index, mVideo in enumerate(videos):
+                try:
+                    if not mVideo:
+                        raise Exception(f'{index} video is missing')
+                    
+                    if len(mVideo['body']) > 6 * 1024 * 1024:
+                        raise Exception('Video size is too large. Maximum size allowed is 4 MB')
+
+                    
+                    mVideoFile = self.save_media(mVideo, f'video_{index}')
+                    video_files.append({'fileName': mVideoFile})
+                except Exception as e:
+                    message = str(e)
+                    code = 4554
+                    raise Exception
+
+            # Validation for photos and videos
             if not images:
                 message = 'Photos are required'
                 code = 4054
                 raise Exception
 
-
+            if not video_files:
+                message = 'Videos are required'
+                code = 4055
+                raise Exception
 
             # Create the spot data dictionary
             spot_data = {
@@ -183,8 +204,8 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                     'child': mEntryFeeCh
                 },
                 'visiting_hours': mVisitingHours,
-                'images': images
-                
+                'images': images,
+                'videos': video_files
             }
 
             try:
@@ -233,6 +254,7 @@ class SpotHandler(tornado.web.RequestHandler, Database):
             raise Exception
 
 
+
     # GET method for retrieving spots by ID or all spots
     async def get(self):
         code = 4000
@@ -255,6 +277,9 @@ class SpotHandler(tornado.web.RequestHandler, Database):
                 
                 for img in spot.get('images', []):
                     img['link'] = 'http://10.10.10.136/uploads/{}'.format(img.get('fileName'))
+
+                for vdo in spot.get('videos', []):
+                    vdo['link'] = 'http://10.10.10.136/uploads/{}'.format(vdo.get('fileName'))
                 
                 result.append(spot)
 
@@ -605,11 +630,29 @@ class SpotHandler(tornado.web.RequestHandler, Database):
 
 
 
-    def save_photo(self, photo, key):
+    def save_media(self, media, key, compress=False):
         unique_id = str(uuid4())
-        mime_type, _ = MimeTypes().guess_type(photo['filename'])
+        mime_type, _ = MimeTypes().guess_type(media['filename'])
         extension = MimeTypes().guess_extension(mime_type)
-        file_name = f"{unique_id}{extension}"
-        with open("uploads/" + file_name, 'wb') as output_file:
-            output_file.write(photo['body'])
-        return file_name
+
+        if mime_type.startswith('image/') or mime_type.startswith('video/'):
+            file_name = f"{unique_id}{extension}"
+            file_path = "uploads/" + file_name
+
+            with open(file_path, 'wb') as output_file:
+                output_file.write(media['body'])
+
+            if compress and mime_type.startswith('video/'):
+                compressed_file_path = self.compress_video(file_path)
+                os.remove(file_path)  # Remove the original video file
+                file_path = compressed_file_path
+
+            return file_name
+        else:
+            raise Exception(f"{key} must be an image or video file")
+
+    def compress_video(self, file_path):
+        compressed_file_path = file_path.replace('.', '_compressed.')
+        clip = VideoFileClip(file_path)
+        clip.write_videofile(compressed_file_path, bitrate="500k")
+        return compressed_file_path
